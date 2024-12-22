@@ -196,6 +196,7 @@ class _group_forecaster():
         training_cols = [c for c in self._data_trans if c not in [self.id_var, self.timestep_var, self.endog_var] + self.group_vars + target_cols and not re.fullmatch(r'^_endog_.*', c)]
         self._X_cols = training_cols
 
+
     def _reverse_transform_preds(self, y_pred, data_pred):
         # undo any differencing
         if self.differencing:
@@ -255,10 +256,6 @@ class DirectForecaster(_group_forecaster):
             target = f'endog_lookahead_{str(step)}'
             data_train = self._data_trans.dropna(subset=target)
 
-            # define the target for the current lookahead and drop any rows with blank targets
-            target = f'endog_lookahead_{str(step)}'
-            data_train = self._data_trans.dropna(subset=target)
-
             # get the X and y training data
             X_train = data_train[self._X_cols]
             y_train = data_train[target]
@@ -302,6 +299,100 @@ class DirectForecaster(_group_forecaster):
             for a, pi_pred in zip(self._alphas, pi_preds):
                 current_pred_data[f'Forecast_{a:.3f}'] = pi_pred
             current_pred_data[self.timestep_var] += step * self._inferred_timestep
+            pred_data_list.append(current_pred_data)
+
+        # transform the predictions to a single dataframe
+        prediction_data = pd.concat(pred_data_list, axis=0).reset_index(drop=True)
+
+        return prediction_data
+    
+
+class RecursiveForecaster(_group_forecaster):
+    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[]):
+        super().__init__(
+            data=data,
+            endog_var=endog_var, 
+            id_var=id_var, 
+            group_vars=group_vars, 
+            timestep_var=timestep_var, 
+            exog_vars=exog_vars, 
+            boxcox=boxcox, 
+            differencing=differencing, 
+            lags=lags, 
+            seasonality_fourier=seasonality_fourier, 
+            seasonality_onehot=seasonality_onehot, 
+            seasonality_ordinal=seasonality_ordinal
+        )
+
+    def fit(self, alpha=None):
+        # transform the data
+        self._transform_data(lookaheads=1)
+
+        # calculate alpha
+        if type(alpha) == float:
+            self._alphas = [alpha / 2, 1 - alpha / 2]
+        elif alpha == None:
+            self._alphas = []
+        else:
+            self._alphas = alpha
+
+        # create predictor object
+        self._predictor = LGBMRegressor(verbose=-1, objective='quantile', alpha=0.5)
+        self._pi_predictors = {}
+        for a in self._alphas:
+            self._pi_predictors[a] = LGBMRegressor(verbose=-1, objective='quantile', alpha=a)
+
+        # define the target for the current lookahead and drop any rows with blank targets
+        target = f'endog_lookahead_1'
+        data_train = self._data_trans.dropna(subset=target)
+
+        # get the X and y training data
+        X_train = data_train[self._X_cols]
+        y_train = data_train[target]
+
+        # train the model and store it
+        self._predictor.fit(X_train, y_train)
+
+        # train any prediction interval models and store them
+        for a in self._alphas:
+            self._pi_predictors[a].fit(X_train, y_train)
+
+    def predict(self, steps=1):
+        # instantiate a list to store the predictions
+        pred_data_list = []
+
+        # make a prediction for each lookahead
+        for step in range(1, steps + 1):
+            # define the prediction data
+            if step != 1:
+                self.data = pd.concat([self.data, current_pred_data.rename(columns={'Forecast': self.endog_var})], axis=0)
+                self._infer_timestep()
+                self._transform_data(lookaheads=1)
+
+            data_pred = self._data_trans.loc[self._data_trans[self.timestep_var] == max(self._data_trans[self.timestep_var])]
+
+            # get the X data for prediction
+            X_pred = data_pred[self._X_cols]
+
+            # train the model and make predictions
+            y_pred = self._predictor.predict(X_pred)
+            pi_preds = []
+            for p in self._pi_predictors.values():
+                pi_preds.append(p.predict(X_pred))
+
+            # reverse transform the predictions as necessary
+            y_pred = self._reverse_transform_preds(y_pred, data_pred)
+            for i in range(len(pi_preds)):
+                pi_preds[i] = self._reverse_transform_preds(pi_preds[i], data_pred)
+
+            # TODO: make it so the prediction intervals add on previous prediction intervals
+
+            # store the prediction data
+            current_pred_data = data_pred[[self.id_var, self.timestep_var] + self.group_vars].copy()
+            current_pred_data['Forecast'] = y_pred 
+            for a, pi_pred in zip(self._alphas, pi_preds):
+                current_pred_data[f'Forecast_{a:.3f}'] = pi_pred
+            current_pred_data[self.timestep_var] += self._inferred_timestep
             pred_data_list.append(current_pred_data)
 
         # transform the predictions to a single dataframe

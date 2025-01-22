@@ -96,27 +96,29 @@ class _GroupForecaster():
 
         # create new dataframe that includes all dates for all time series IDs
         all_date_id_combos = list(product(all_timesteps, data[self.id_var].unique()))
-        filled_data = pd.DataFrame(all_date_id_combos, columns=[self.timestep_var, self.id_var])
+        data_trans = pd.DataFrame(all_date_id_combos, columns=[self.timestep_var, self.id_var])
 
         # join the group values onto the newly filled data
-        filled_data = pd.merge(left=filled_data, right=id_group_key, on=self.id_var, how='left')
+        data_trans = pd.merge(left=data_trans, right=id_group_key, on=self.id_var, how='left')
         
         # join the endog and exog variabes onto the newly filled data
-        filled_data = pd.merge(
-            left=filled_data, 
+        data_trans = pd.merge(
+            left=data_trans, 
             right=data[[self.id_var, self.endog_var, self.timestep_var] + self.exog_vars], 
             on=[self.id_var, self.timestep_var], 
             how='left'
         )
 
+        # creating the endog column with the raw endogenous variable values
+        data_trans['endog'] = data_trans[self.endog_var]
+
         # applying boxcox transformation if necessary:
         if self.boxcox == 0:
-            filled_data['_endog_boxcox'] = np.log(filled_data[self.endog_var] + 1)
+            data_trans['_endog_boxcox'] = np.log(data_trans['endog'] + 1)
         else:
-            filled_data['_endog_boxcox'] = ((filled_data[self.endog_var] + 1) ** self.boxcox - 1) / self.boxcox
+            data_trans['_endog_boxcox'] = ((data_trans['endog'] + 1) ** self.boxcox - 1) / self.boxcox
 
         # create a new transformed version of the data that will contain all generated features 
-        data_trans = filled_data.copy()
         data_trans['endog'] = data_trans['_endog_boxcox']
 
         # difference the data if necessary
@@ -130,10 +132,8 @@ class _GroupForecaster():
         for lookahead in range(1, lookaheads + 1):
             # get the future endog for the lookahead
             if self.differencing:
-                # data_trans[f'endog_lookahead_{str(lookahead)}'] = (data_trans['_endog_boxcox'].shift(-lookahead) - data_trans['_endog_boxcox'])
                 data_trans[f'endog_lookahead_{str(lookahead)}'] = data_trans.groupby(self.id_var)['_endog_boxcox'].shift(-lookahead) - data_trans['_endog_boxcox']
             else:
-                # data_trans[f'endog_lookahead_{str(lookahead)}'] = data_trans['endog'].shift(-lookahead)
                 data_trans[f'endog_lookahead_{str(lookahead)}'] = data_trans.groupby(self.id_var)['_endog_boxcox'].shift(-lookahead)
 
         # generate lags

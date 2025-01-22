@@ -1,0 +1,10 @@
+# ignore all .pkl and .csv files in root folder
+/*.pkl
+/*.csv
+
+# ignore cache folder
+__pycache__
+.idea
+
+# ignore github pages site directory
+site/

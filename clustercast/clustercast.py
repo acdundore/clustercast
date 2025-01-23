@@ -11,7 +11,7 @@ import warnings
 
 
 class _GroupForecaster():
-    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[]):
+    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[]):
         self.data = data 
         self._data_trans = None
         self.endog_var = endog_var 
@@ -21,10 +21,12 @@ class _GroupForecaster():
         self.timestep_var = timestep_var
         self.boxcox = boxcox
         self.differencing = differencing
+        self.include_level = include_level
         self.seasonality_fourier = seasonality_fourier
         self.seasonality_onehot = seasonality_onehot
         self.seasonality_ordinal = seasonality_ordinal
 
+        # convert lags to a list if necessary
         if type(lags) == list:
             self.lags = lags
         else:
@@ -122,6 +124,10 @@ class _GroupForecaster():
 
         # create a new transformed version of the data that will contain all generated features 
         data_trans['endog'] = data_trans['_endog_boxcox']
+
+        # if you are differencing and want a current level feature, add it now
+        if self.differencing and self.include_level:
+            data_trans['endog_level'] = data_trans['endog']
 
         # difference the data if necessary
         if self.differencing:
@@ -225,7 +231,7 @@ class _GroupForecaster():
 
 
 class DirectForecaster(_GroupForecaster):
-    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[]):
+    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[]):
         super().__init__(
             data=data,
             endog_var=endog_var, 
@@ -235,6 +241,7 @@ class DirectForecaster(_GroupForecaster):
             exog_vars=exog_vars, 
             boxcox=boxcox, 
             differencing=differencing, 
+            include_level=include_level,
             lags=lags, 
             seasonality_fourier=seasonality_fourier, 
             seasonality_onehot=seasonality_onehot, 
@@ -269,7 +276,7 @@ class DirectForecaster(_GroupForecaster):
             target = f'endog_lookahead_{str(step)}'
             data_train = self._data_trans.dropna(subset=target)
             
-            # check if the training dataset is empty after transformation
+            # throw a warning if the training dataset is empty after transformation
             if len(data_train) == 0:
                 raise ValueError(f'No training data available after transformation for step {step} due to insufficient historical data for the specified lags and lookahead.')
 
@@ -331,7 +338,7 @@ class DirectForecaster(_GroupForecaster):
     
 
 class RecursiveForecaster(_GroupForecaster):
-    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[]):
+    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[]):
         super().__init__(
             data=data,
             endog_var=endog_var, 
@@ -341,6 +348,7 @@ class RecursiveForecaster(_GroupForecaster):
             exog_vars=exog_vars, 
             boxcox=boxcox, 
             differencing=differencing, 
+            include_level=include_level,
             lags=lags, 
             seasonality_fourier=seasonality_fourier, 
             seasonality_onehot=seasonality_onehot, 

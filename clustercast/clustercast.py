@@ -268,6 +268,15 @@ class DirectForecaster(_GroupForecaster):
             # define the target for the current lookahead and drop any rows with blank targets
             target = f'endog_lookahead_{str(step)}'
             data_train = self._data_trans.dropna(subset=target)
+            
+            # check if the training dataset is empty after transformation
+            if len(data_train) == 0:
+                raise ValueError(f'No training data available after transformation for step {step} due to insufficient historical data for the specified lags and lookahead.')
+
+            # raise a warning if you are losing a significant amount of data for training after transformation
+            if len(data_train) < 0.50 * len(self.data):
+                lost_proportion = (1 - len(data_train) / len(self.data)) * 100
+                warnings.warn(f'{lost_proportion:.1f}% of data was lost after transformation for step {step}.', UserWarning)
 
             # get the X and y training data
             X_train = data_train[self._X_cols]
@@ -378,7 +387,7 @@ class RecursiveForecaster(_GroupForecaster):
 
         # check to see if the model needs exogenous variables to be passed
         if len(self.exog_vars) > 0 and exog is None:
-                warnings.warn('The model was fit on exogenous features, but none were passed to the predict method.', UserWarning)
+            warnings.warn('The model was fit on exogenous features, but none were passed to the predict method.', UserWarning)
 
         # make a prediction for each lookahead
         for step in range(1, steps + 1):

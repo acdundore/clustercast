@@ -6,6 +6,7 @@ from lightgbm import LGBMRegressor
 from collections import Counter
 from itertools import product
 import re 
+import warnings 
 
 
 class _GroupForecaster():
@@ -338,9 +339,13 @@ class RecursiveForecaster(_GroupForecaster):
             self._in_sample_residuals_dict[id] = np.array(in_sample_residuals_df.loc[in_sample_residuals_df['ID'] == id, 'Residuals'])
 
 
-    def predict(self, steps=1, bootstrap_iter=100):
+    def predict(self, steps=1, exog=None, bootstrap_iter=100):
         # instantiate a list to store the predictions
         pred_data_list = []
+
+        # check to see if the model needs exogenous variables to be passed
+        if len(self.exog_vars) > 0 and exog is None:
+                warnings.warn('The model was fit on exogenous features, but none were passed to the predict method.', UserWarning)
 
         # make a prediction for each lookahead
         for step in range(1, steps + 1):
@@ -355,10 +360,20 @@ class RecursiveForecaster(_GroupForecaster):
 
             data_pred = self._data_trans.loc[self._data_trans[self.timestep_var] == max(self._data_trans[self.timestep_var])]
 
+            # check to see if exogenous variables were passed to the predict method
+            if exog is not None:
+                # merge the new exogenous variables onto the prediction dataframe, and change the old exogenous feature name for removal
+                data_pred = pd.merge(left=data_pred, right=exog, on=[self.timestep_var, self.id_var], how='left', suffixes=(None, '__FUTURE__'))
+
+                # for each exogenous variable, infill it with the future data if it exists
+                for exog_var in self.exog_vars:
+                    future_exog_var = f"{exog_var}__FUTURE__"
+                    if future_exog_var in data_pred.columns:
+                        # where the original variable is null, replace with future values
+                        data_pred[exog_var] = data_pred[exog_var].fillna(data_pred[future_exog_var])
+
             # get the X data for prediction
             X_pred = data_pred[self._X_cols]
-
-            # TODO: carry forward any exogenous variables that are passed in the data
 
             # train the model and make predictions
             y_pred = self._predictor.predict(X_pred)
@@ -390,15 +405,27 @@ class RecursiveForecaster(_GroupForecaster):
                     if step != 1:
                         data = pd.concat([data, current_pred_data.rename(columns={'Forecast': self.endog_var})], axis=0)
                     
+                    # get all timesteps and transform the data
                     all_timesteps = self._get_all_timesteps(data)
                     data_trans = self._transform_data(data=data, all_timesteps=all_timesteps, lookaheads=1)
 
+                    # get the most recent batch of data for prediction
                     data_pred = data_trans.loc[data_trans[self.timestep_var] == max(data_trans[self.timestep_var])]
+
+                    # check to see if exogenous variables were passed to the predict method
+                    if exog is not None:
+                        # merge the new exogenous variables onto the prediction dataframe, and change the old exogenous feature name for removal
+                        data_pred = pd.merge(left=data_pred, right=exog, on=[self.timestep_var, self.id_var], how='left', suffixes=(None, '__FUTURE__'))
+
+                        # for each exogenous variable, infill it with the future data if it exists
+                        for exog_var in self.exog_vars:
+                            future_exog_var = f"{exog_var}__FUTURE__"
+                            if future_exog_var in data_pred.columns:
+                                # where the original variable is null, replace with future values
+                                data_pred[exog_var] = data_pred[exog_var].fillna(data_pred[future_exog_var])
 
                     # get the X data for prediction
                     X_pred = data_pred[self._X_cols]
-
-                    # TODO: carry forward any exogenous variables that are passed in the data
 
                     # train the model and make predictions
                     y_pred = self._predictor.predict(X_pred)

@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np 
 import datetime as dt 
 from lightgbm import LGBMRegressor 
+from statsmodels.tsa.stattools import adfuller
 
 from collections import Counter
 from itertools import product
@@ -189,7 +190,39 @@ class _GroupForecaster():
             y_pred = (y_pred * self.boxcox + 1) ** (1 / self.boxcox) - 1
 
         return y_pred
+    
+    
+    def stationarity_test(self, p_threshold=0.05):
+        # create a list to store results
+        row_list = []
         
+        # get transformed data
+        data_trans = self._transform_data(self.data, self._all_timesteps, lookaheads=1)
+        
+        # perform test for each time series ID
+        for id in self.data[self.id_var].unique():
+            # instantiate a dict to store the data, and track the ID
+            current_row = {}
+            current_row['ID'] = id
+            
+            # test raw data
+            raw_ts = self.data.loc[self.data[self.id_var]==id, self.endog_var].dropna()
+            adf_raw = adfuller(raw_ts)
+            current_row['Raw ADF p-value'] = adf_raw[1]
+            
+            # test transformed data
+            trans_ts = data_trans.loc[data_trans[self.id_var]==id, 'endog'].dropna()
+            adf_trans = adfuller(trans_ts)
+            current_row['Transformed ADF p-value'] = adf_trans[1]
+
+            # store the row
+            row_list.append(current_row)
+            
+        # Compile results into dataframe
+        results = pd.DataFrame(row_list)
+        
+        return results
+
 
 class DirectForecaster(_GroupForecaster):
     def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[]):

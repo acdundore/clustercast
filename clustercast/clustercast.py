@@ -303,6 +303,12 @@ class DirectForecaster(_GroupForecaster):
         # instantiate a list to store the predictions
         pred_data_list = []
 
+        # check to see if the intended number of steps to predict is larger than the number of lookahead models trained
+        if steps > len(self._predictors):
+            # warn the user that more models will need to be trained, then train them
+            warnings.warn('The model has not yet been trained for this many prediction steps. Training more models now.', UserWarning)
+            self.fit(max_steps=steps, alpha=self._alphas)
+
         # make a prediction for each lookahead
         for step in range(1, steps + 1):
             # define the prediction data
@@ -469,7 +475,7 @@ class RecursiveForecaster(_GroupForecaster):
 
                         # for each exogenous variable, infill it with the future data if it exists
                         for exog_var in self.exog_vars:
-                            future_exog_var = f"{exog_var}__FUTURE__"
+                            future_exog_var = f'{exog_var}__FUTURE__'
                             if future_exog_var in data_pred.columns:
                                 # where the original variable is null, replace with future values
                                 data_pred[exog_var] = data_pred[exog_var].fillna(data_pred[future_exog_var])

@@ -197,6 +197,38 @@ class _GroupForecaster():
 
         return y_pred
     
+
+    def _determine_cqr_cal_size(self, cqr_cal_size):
+        # determine maximum season length
+        max_season_length = 0
+        if self.seasonality_fourier != {}:
+            max_season_length = max(max_season_length, max(list(self.seasonality_fourier.keys())))
+        if self.seasonality_onehot != []:
+            max_season_length = max(max_season_length, max(self.seasonality_onehot))
+        if self.seasonality_ordinal != []:
+            max_season_length = max(max_season_length, max(self.seasonality_ordinal))
+
+        # determine cutoff timestep for CQR if necessary
+        if cqr_cal_size == 'auto':
+            # determine length of 20% of all timesteps
+            length_20_dataset = np.ceil(len(self._all_timesteps) * 0.20)
+
+            # set the CQR calibration set size to be max of largest season length vs dataset proportion
+            cqr_cal_size = max(max_season_length, length_20_dataset)
+        elif type(cqr_cal_size) == int:
+            pass
+        elif type(cqr_cal_size) == float:
+            cqr_cal_size = int(np.ceil(len(self._all_timesteps) * cqr_cal_size))
+        else:
+            raise ValueError(f'cqr_cal_size must be either \'auto\', an integer, or a float.')
+
+        # throw a warning if the calculated CQR size is less than a single season and override it
+        if cqr_cal_size < max_season_length:
+            warnings.warn(f'cqr_cal_size was set to less than the length of the largest seasonality ({max_season_length} timesteps). A full season length was used instead.', UserWarning)
+            cqr_cal_size = max_season_length
+
+        return cqr_cal_size
+    
     
     def stationarity_test(self, p_threshold=0.05):
         # create a list to store results
@@ -248,29 +280,32 @@ class DirectForecaster(_GroupForecaster):
             seasonality_ordinal=seasonality_ordinal
         )
 
-    def fit(self, max_steps=1, alpha=None):
+    def fit(self, max_steps=1, alpha=None, cqr_cal_size='auto'):
+        # determine CQR calibration set size
+        if cqr_cal_size is not None:
+            cqr_cal_size = self._determine_cqr_cal_size(cqr_cal_size) 
+
         # transform the data
         self._data_trans = self._transform_data(data=self.data, all_timesteps=self._all_timesteps, lookaheads=max_steps)
 
         # calculate alpha
         if type(alpha) == float:
-            self._alphas = [alpha / 2, 1 - alpha / 2]
-        elif alpha == None:
-            self._alphas = []
+            self._alpha = alpha
         else:
-            self._alphas = alpha
+            self._alpha = None
 
         # create lists to store the trained models
         self._predictors = []
-        self._pi_predictors = []
+        self._pi_lo_predictors = []
+        self._pi_hi_predictors = []
+        self._cqr_Q = []
 
         # make a prediction for each lookahead
         for step in range(1, max_steps + 1):
             # create predictor object
             current_predictor = LGBMRegressor(verbose=-1, objective='quantile', alpha=0.5)
-            current_pi_predictors = {}
-            for a in self._alphas:
-                current_pi_predictors[a] = LGBMRegressor(verbose=-1, objective='quantile', alpha=a)
+            current_pi_lo_predictor = LGBMRegressor(verbose=-1, objective='quantile', alpha=(self._alpha / 2))
+            current_pi_hi_predictor = LGBMRegressor(verbose=-1, objective='quantile', alpha=(1 - self._alpha / 2))
 
             # define the target for the current lookahead and drop any rows with blank targets
             target = f'endog_lookahead_{str(step)}'
@@ -283,7 +318,7 @@ class DirectForecaster(_GroupForecaster):
             # raise a warning if you are losing a significant amount of data for training after transformation
             if len(data_train) < 0.50 * len(self.data):
                 lost_proportion = (1 - len(data_train) / len(self.data)) * 100
-                warnings.warn(f'{lost_proportion:.1f}% of data was lost after transformation for step {step}.', UserWarning)
+                warnings.warn(f'{lost_proportion:.1f}% of data was lost after transformation for step {step}. Severe performance degradation may occur.', UserWarning)
 
             # get the X and y training data
             X_train = data_train[self._X_cols]
@@ -293,11 +328,45 @@ class DirectForecaster(_GroupForecaster):
             current_predictor.fit(X_train, y_train)
             self._predictors.append(current_predictor)
 
-            # train any prediction interval models and store them
-            for a in self._alphas:
-                current_pi_predictors[a].fit(X_train, y_train)
+            # fitting prediction interval models
+            if cqr_cal_size is not None:
+                # calculate cqr_cal_size cutoff timestep for current lookahead
+                cqr_cal_cutoff = np.array(data_train[self.timestep_var].unique())[-cqr_cal_size]
 
-            self._pi_predictors.append(current_pi_predictors)
+                # create training and calibration sets for CQR
+                X_train_pi = data_train.loc[data_train[self.timestep_var] < cqr_cal_cutoff, self._X_cols]
+                y_train_pi = data_train.loc[data_train[self.timestep_var] < cqr_cal_cutoff, target]
+                X_cal_pi = data_train.loc[data_train[self.timestep_var] >= cqr_cal_cutoff, self._X_cols]
+                y_cal_pi = data_train.loc[data_train[self.timestep_var] >= cqr_cal_cutoff, target]
+                ids_cal_pi = data_train.loc[data_train[self.timestep_var] >= cqr_cal_cutoff, self.id_var]
+
+                # train the prediction interval models and store them
+                current_pi_lo_predictor.fit(X_train_pi, y_train_pi)
+                current_pi_hi_predictor.fit(X_train_pi, y_train_pi)
+                
+                # make low and high predictions
+                y_cal_pi_pred_lo = current_pi_lo_predictor.predict(X_cal_pi)
+                y_cal_pi_pred_hi = current_pi_hi_predictor.predict(X_cal_pi)
+                y_cal_data = pd.DataFrame({self.id_var: ids_cal_pi, 'true': y_cal_pi, 'lo': y_cal_pi_pred_lo, 'hi': y_cal_pi_pred_hi})
+
+                # calculate CQR conformity scores
+                current_Q = {}
+                for id in data_train[self.id_var].unique():
+                    current_y_cal_pi = y_cal_data.loc[y_cal_data[self.id_var] == id, 'true']
+                    current_y_cal_pi_pred_lo = y_cal_data.loc[y_cal_data[self.id_var] == id, 'lo']
+                    current_y_cal_pi_pred_hi = y_cal_data.loc[y_cal_data[self.id_var] == id, 'hi']
+                    current_E = np.maximum(current_y_cal_pi_pred_lo - current_y_cal_pi, current_y_cal_pi - current_y_cal_pi_pred_hi)
+                    empirical_quantile = min((1 - self._alpha) * (1 + 1 / len(current_y_cal_pi)), 1)
+                    current_Q[id] = np.quantile(current_E, q=empirical_quantile)
+
+            # train the prediction interval models on the full dataset (if using CQR, retrain on all data now that Q values are calculated)
+            current_pi_lo_predictor.fit(X_train_pi, y_train_pi)
+            current_pi_hi_predictor.fit(X_train_pi, y_train_pi)
+
+            # store the trained quantile regressors
+            self._pi_lo_predictors.append(current_pi_lo_predictor)
+            self._pi_hi_predictors.append(current_pi_hi_predictor)
+            self._cqr_Q.append(current_Q)
 
     def predict(self, steps=1):
         # instantiate a list to store the predictions
@@ -307,7 +376,7 @@ class DirectForecaster(_GroupForecaster):
         if steps > len(self._predictors):
             # warn the user that more models will need to be trained, then train them
             warnings.warn('The model has not yet been trained for this many prediction steps. Training more models now.', UserWarning)
-            self.fit(max_steps=steps, alpha=self._alphas)
+            self.fit(max_steps=steps, alpha=self._alpha)
 
         # make a prediction for each lookahead
         for step in range(1, steps + 1):
@@ -319,21 +388,32 @@ class DirectForecaster(_GroupForecaster):
 
             # train the model and make predictions
             y_pred = self._predictors[step - 1].predict(X_pred)
-            pi_preds = []
-            for p in self._pi_predictors[step - 1].values():
-                pi_preds.append(p.predict(X_pred))
+            y_pred_pi_lo = self._pi_lo_predictors[step - 1].predict(X_pred)
+            y_pred_pi_hi = self._pi_hi_predictors[step - 1].predict(X_pred)
+
+            # modify the predictions with CQR scores if necessary
+            if len(self._cqr_Q) > 0:
+                ids_pred = data_pred[self.id_var]
+                y_pred_data = pd.DataFrame({self.id_var: ids_pred, 'true': y_pred, 'lo': y_pred_pi_lo, 'hi': y_pred_pi_hi})
+                for id in data_pred[self.id_var].unique():
+                    y_pred_data.loc[y_pred_data[self.id_var] == id, 'lo'] -= self._cqr_Q[step - 1][id]
+                    y_pred_data.loc[y_pred_data[self.id_var] == id, 'hi'] += self._cqr_Q[step - 1][id]
+                
+                y_pred_pi_lo = y_pred_data['lo']
+                y_pred_pi_hi = y_pred_data['hi']
 
             # reverse transform the predictions as necessary
             y_pred = self._reverse_transform_preds(y_pred, data_pred)
-            for i in range(len(pi_preds)):
-                pi_preds[i] = self._reverse_transform_preds(pi_preds[i], data_pred)
+            y_pred_pi_lo = self._reverse_transform_preds(y_pred_pi_lo, data_pred)
+            y_pred_pi_hi = self._reverse_transform_preds(y_pred_pi_hi, data_pred)
 
             # store the prediction data
             current_pred_data = data_pred[[self.id_var, self.timestep_var] + self.group_vars].copy()
-            current_pred_data['Forecast'] = y_pred 
-            for a, pi_pred in zip(self._alphas, pi_preds):
-                current_pred_data[f'Forecast_{a:.3f}'] = pi_pred
-
+            current_pred_data['Forecast'] = y_pred
+            alpha_lo = self._alpha / 2
+            alpha_hi = 1 - (self._alpha / 2)
+            current_pred_data[f'Forecast_{alpha_lo:.3f}'] = y_pred_pi_lo 
+            current_pred_data[f'Forecast_{alpha_hi:.3f}'] = y_pred_pi_hi 
             current_pred_data[self.timestep_var] += step * self._inferred_timestep
             pred_data_list.append(current_pred_data)
 

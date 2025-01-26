@@ -94,13 +94,16 @@ class _GroupForecaster():
         return all_timesteps
 
 
-    def _transform_data(self, data, all_timesteps, lookaheads=1):
+    def _transform_data(self, data, all_timesteps, lookaheads=1, bootstrap_iter_col=[]):
         # create a dataframe with the group values for all IDs
         id_group_key = data[[self.id_var] + self.group_vars].drop_duplicates()
 
-        # create new dataframe that includes all dates for all time series IDs
-        all_date_id_combos = list(product(all_timesteps, data[self.id_var].unique()))
-        data_trans = pd.DataFrame(all_date_id_combos, columns=[self.timestep_var, self.id_var])
+        # create new dataframe that includes all dates for all time series IDs (and all bootstrap iterations if applicable)
+        if len(bootstrap_iter_col) > 0:
+            all_date_id_combos = list(product(all_timesteps, data[self.id_var].unique(), data[bootstrap_iter_col[0]].unique()))
+        else:
+            all_date_id_combos = list(product(all_timesteps, data[self.id_var].unique()))
+        data_trans = pd.DataFrame(all_date_id_combos, columns=[self.timestep_var, self.id_var] + bootstrap_iter_col)
 
         # join the group values onto the newly filled data
         data_trans = pd.merge(left=data_trans, right=id_group_key, on=self.id_var, how='left')
@@ -108,8 +111,8 @@ class _GroupForecaster():
         # join the endog and exog variabes onto the newly filled data
         data_trans = pd.merge(
             left=data_trans, 
-            right=data[[self.id_var, self.endog_var, self.timestep_var] + self.exog_vars], 
-            on=[self.id_var, self.timestep_var], 
+            right=data[[self.id_var, self.endog_var, self.timestep_var] + self.exog_vars + bootstrap_iter_col], 
+            on=[self.id_var, self.timestep_var] + bootstrap_iter_col, 
             how='left'
         )
 
@@ -132,7 +135,7 @@ class _GroupForecaster():
         # difference the data if necessary
         if self.differencing:
             # differencing the data
-            data_trans['_endog_differenced'] = data_trans['endog'] - data_trans.groupby(self.id_var)['endog'].shift(1)
+            data_trans['_endog_differenced'] = data_trans['endog'] - data_trans.groupby([self.id_var] + bootstrap_iter_col)['endog'].shift(1)
             # overwrite the final endog variable if necessary
             data_trans['endog'] = data_trans['_endog_differenced']
 
@@ -140,13 +143,13 @@ class _GroupForecaster():
         for lookahead in range(1, lookaheads + 1):
             # get the future endog for the lookahead
             if self.differencing:
-                data_trans[f'endog_lookahead_{str(lookahead)}'] = data_trans.groupby(self.id_var)['_endog_boxcox'].shift(-lookahead) - data_trans['_endog_boxcox']
+                data_trans[f'endog_lookahead_{str(lookahead)}'] = data_trans.groupby([self.id_var] + bootstrap_iter_col)['_endog_boxcox'].shift(-lookahead) - data_trans['_endog_boxcox']
             else:
-                data_trans[f'endog_lookahead_{str(lookahead)}'] = data_trans.groupby(self.id_var)['_endog_boxcox'].shift(-lookahead)
+                data_trans[f'endog_lookahead_{str(lookahead)}'] = data_trans.groupby([self.id_var] + bootstrap_iter_col)['_endog_boxcox'].shift(-lookahead)
 
         # generate lags
         for lag in self.lags:
-            data_trans[f'endog_lag_{str(lag).zfill(len(str(max(self.lags))))}'] = data_trans.groupby(self.id_var)['endog'].shift(lag)
+            data_trans[f'endog_lag_{str(lag).zfill(len(str(max(self.lags))))}'] = data_trans.groupby([self.id_var] + bootstrap_iter_col)['endog'].shift(lag)
 
         # creating placeholder dataframe for seasonality features
         seasonality_features = pd.DataFrame({self.timestep_var: all_timesteps})
@@ -178,7 +181,7 @@ class _GroupForecaster():
 
         # store a list of all training features
         target_cols = [c for c in data_trans if 'endog_lookahead_' in c]
-        training_cols = [c for c in data_trans if c not in [self.id_var, self.timestep_var, self.endog_var] + self.group_vars + target_cols and not re.fullmatch(r'^_endog_.*', c)]
+        training_cols = [c for c in data_trans if c not in [self.id_var, self.timestep_var, self.endog_var] + self.group_vars + target_cols + bootstrap_iter_col and not re.fullmatch(r'^_endog_.*', c)]
         self._X_cols = training_cols
 
         return data_trans
@@ -540,53 +543,58 @@ class RecursiveForecaster(_GroupForecaster):
             # create a list to store the bootstrapped prediction data
             bootstrap_pred_data_list = []
 
-            # repeat the bootstrapping for the specified number of iterations
-            for b_iter in range(bootstrap_iter):
-                # make a prediction for each lookahead
-                for step in range(1, steps + 1):
-                    # define the prediction data
-                    if step == 1:
-                        data = self.data
-                    if step != 1:
-                        data = pd.concat([data, current_pred_data.rename(columns={'Forecast': self.endog_var})], axis=0)
-                    
-                    # get all timesteps and transform the data
-                    all_timesteps = self._get_all_timesteps(data)
-                    data_trans = self._transform_data(data=data, all_timesteps=all_timesteps, lookaheads=1)
+            # make predictions for each lookahead
+            for step in range(1, steps + 1):
+                # define the prediction data
+                if step == 1:
+                    # Create sets of the data for each bootstrap iteration that includes the iteration number
+                    data = pd.concat([self.data.copy().assign(bootstrap_iter=i) for i in range(bootstrap_iter)], axis=0)
+                else:
+                    data = pd.concat([data, current_pred_data.rename(columns={'Forecast': self.endog_var})], axis=0)
+                
+                # get all timesteps and transform the data; include the bootstrap iteration in the transform
+                all_timesteps = self._get_all_timesteps(data)
+                data_trans = self._transform_data(data=data, all_timesteps=all_timesteps, lookaheads=1, bootstrap_iter_col=['bootstrap_iter'])
 
-                    # get the most recent batch of data for prediction
-                    data_pred = data_trans.loc[data_trans[self.timestep_var] == max(data_trans[self.timestep_var])]
+                # get the most recent batch of data for prediction
+                data_pred = data_trans.loc[data_trans[self.timestep_var] == max(data_trans[self.timestep_var])]
 
-                    # check to see if exogenous variables were passed to the predict method
-                    if exog is not None:
-                        # merge the new exogenous variables onto the prediction dataframe, and change the old exogenous feature name for removal
-                        data_pred = pd.merge(left=data_pred, right=exog, on=[self.timestep_var, self.id_var], how='left', suffixes=(None, '__FUTURE__'))
+                # check to see if exogenous variables were passed to the predict method
+                if exog is not None:
+                    # merge the new exogenous variables onto the prediction dataframe, and change the old exogenous feature name for removal
+                    data_pred = pd.merge(left=data_pred, right=exog, on=[self.timestep_var, self.id_var], how='left', suffixes=(None, '__FUTURE__'))
 
-                        # for each exogenous variable, infill it with the future data if it exists
-                        for exog_var in self.exog_vars:
-                            future_exog_var = f'{exog_var}__FUTURE__'
-                            if future_exog_var in data_pred.columns:
-                                # where the original variable is null, replace with future values
-                                data_pred[exog_var] = data_pred[exog_var].fillna(data_pred[future_exog_var])
+                    # for each exogenous variable, infill it with the future data if it exists
+                    for exog_var in self.exog_vars:
+                        future_exog_var = f'{exog_var}__FUTURE__'
+                        if future_exog_var in data_pred.columns:
+                            # where the original variable is null, replace with future values
+                            data_pred[exog_var] = data_pred[exog_var].fillna(data_pred[future_exog_var])
 
-                    # get the X data for prediction
-                    X_pred = data_pred[self._X_cols]
+                # get the X data for prediction
+                X_pred = data_pred[self._X_cols]
 
-                    # train the model and make predictions
-                    y_pred = self._predictor.predict(X_pred)
+                # train the model and make predictions
+                y_pred = self._predictor.predict(X_pred)
 
-                    # add on randomly sampled residuals from the fitted values (from respective time series)
-                    for i, id in enumerate(data_pred[self.id_var]):
-                        y_pred[i] += np.random.choice(a=self._in_sample_residuals_dict[id], size=1)[0]
+                # add on randomly sampled residuals from the fitted values from respective time series
+                for id in data_pred[self.id_var].unique():
+                    # get indices for current ID, and calculate length of samples to be taken
+                    id_mask = data_pred[self.id_var] == id
+                    n_instances = id_mask.sum()
 
-                    # reverse transform the predictions as necessary
-                    y_pred = self._reverse_transform_preds(y_pred, data_pred)
+                    # sample residuals for each instance of this ID and add them to the predictions
+                    sampled_residuals = np.random.choice(a=self._in_sample_residuals_dict[id], size=n_instances)
+                    y_pred[id_mask] += sampled_residuals
 
-                    # store the prediction data
-                    current_pred_data = data_pred[[self.id_var, self.timestep_var] + self.group_vars].copy()
-                    current_pred_data['Forecast'] = y_pred 
-                    current_pred_data[self.timestep_var] += self._inferred_timestep
-                    bootstrap_pred_data_list.append(current_pred_data)
+                # reverse transform the predictions as necessary
+                y_pred = self._reverse_transform_preds(y_pred, data_pred)
+
+                # store the prediction data
+                current_pred_data = data_pred[[self.id_var, self.timestep_var] + self.group_vars + ['bootstrap_iter']].copy()
+                current_pred_data['Forecast'] = y_pred 
+                current_pred_data[self.timestep_var] += self._inferred_timestep
+                bootstrap_pred_data_list.append(current_pred_data)
 
             # transform the predictions to a single dataframe
             bootstrap_prediction_data = pd.concat(bootstrap_pred_data_list, axis=0).reset_index(drop=True)

@@ -211,7 +211,7 @@ class _GroupForecaster():
         # determine cutoff timestep for CQR if necessary
         if cqr_cal_size == 'auto':
             # determine length of 20% of all timesteps
-            length_20_dataset = np.ceil(len(self._all_timesteps) * 0.20)
+            length_20_dataset = int(np.ceil(len(self._all_timesteps) * 0.20))
 
             # set the CQR calibration set size to be max of largest season length vs dataset proportion
             cqr_cal_size = max(max_season_length, length_20_dataset)
@@ -350,23 +350,33 @@ class DirectForecaster(_GroupForecaster):
                 y_cal_data = pd.DataFrame({self.id_var: ids_cal_pi, 'true': y_cal_pi, 'lo': y_cal_pi_pred_lo, 'hi': y_cal_pi_pred_hi})
 
                 # calculate CQR conformity scores
-                current_Q = {}
+                current_Q = {} # dictionary that stores the conformity modifier for each series ID for a specific lookahead
                 for id in data_train[self.id_var].unique():
+                    # getting prediction data for current series ID
                     current_y_cal_pi = y_cal_data.loc[y_cal_data[self.id_var] == id, 'true']
                     current_y_cal_pi_pred_lo = y_cal_data.loc[y_cal_data[self.id_var] == id, 'lo']
                     current_y_cal_pi_pred_hi = y_cal_data.loc[y_cal_data[self.id_var] == id, 'hi']
-                    current_E = np.maximum(current_y_cal_pi_pred_lo - current_y_cal_pi, current_y_cal_pi - current_y_cal_pi_pred_hi)
-                    empirical_quantile = min((1 - self._alpha) * (1 + 1 / len(current_y_cal_pi)), 1)
-                    current_Q[id] = np.quantile(current_E, q=empirical_quantile)
+
+                    # calculating conformity scores
+                    current_E_lo = current_y_cal_pi_pred_lo - current_y_cal_pi
+                    current_E_hi = current_y_cal_pi - current_y_cal_pi_pred_hi
+
+                    # taking the empirical quantile of the high and low conformity scores and storing the conformity modifiers
+                    empirical_quantile = min((1 - self._alpha / 2) * (1 + 1 / len(current_y_cal_pi)), 1)
+                    current_Q_lo = np.quantile(current_E_lo, q=empirical_quantile)
+                    current_Q_hi = np.quantile(current_E_hi, q=empirical_quantile)
+                    current_Q[id] = [current_Q_lo, current_Q_hi]
+
+                # store the conformity modifiers for all IDs for the current lookahead
+                self._cqr_Q.append(current_Q)
 
             # train the prediction interval models on the full dataset (if using CQR, retrain on all data now that Q values are calculated)
-            current_pi_lo_predictor.fit(X_train_pi, y_train_pi)
-            current_pi_hi_predictor.fit(X_train_pi, y_train_pi)
+            current_pi_lo_predictor.fit(X_train, y_train)
+            current_pi_hi_predictor.fit(X_train, y_train)
 
             # store the trained quantile regressors
             self._pi_lo_predictors.append(current_pi_lo_predictor)
             self._pi_hi_predictors.append(current_pi_hi_predictor)
-            self._cqr_Q.append(current_Q)
 
     def predict(self, steps=1):
         # instantiate a list to store the predictions
@@ -396,9 +406,10 @@ class DirectForecaster(_GroupForecaster):
                 ids_pred = data_pred[self.id_var]
                 y_pred_data = pd.DataFrame({self.id_var: ids_pred, 'true': y_pred, 'lo': y_pred_pi_lo, 'hi': y_pred_pi_hi})
                 for id in data_pred[self.id_var].unique():
-                    y_pred_data.loc[y_pred_data[self.id_var] == id, 'lo'] -= self._cqr_Q[step - 1][id]
-                    y_pred_data.loc[y_pred_data[self.id_var] == id, 'hi'] += self._cqr_Q[step - 1][id]
+                    y_pred_data.loc[y_pred_data[self.id_var] == id, 'lo'] -= self._cqr_Q[step - 1][id][0]
+                    y_pred_data.loc[y_pred_data[self.id_var] == id, 'hi'] += self._cqr_Q[step - 1][id][1]
                 
+                # set the prediction intervals to their modified versions
                 y_pred_pi_lo = y_pred_data['lo']
                 y_pred_pi_hi = y_pred_data['hi']
 

@@ -458,11 +458,9 @@ class RecursiveForecaster(_GroupForecaster):
 
         # calculate alpha
         if type(alpha) == float:
-            self._alphas = [alpha / 2, 1 - alpha / 2]
-        elif alpha == None:
-            self._alphas = []
+            self._alpha = alpha
         else:
-            self._alphas = alpha
+            self._alpha = None
 
         # create predictor object
         self._predictor = LGBMRegressor(verbose=-1, objective='quantile', alpha=0.5)
@@ -538,7 +536,7 @@ class RecursiveForecaster(_GroupForecaster):
         prediction_data = pd.concat(pred_data_list, axis=0).reset_index(drop=True)
 
         # perform bootstrapping if prediction intervals need to be generated
-        if len(self._alphas) > 0:
+        if self._alpha is not None:
             # create a list to store the bootstrapped prediction data
             bootstrap_pred_data_list = []
 
@@ -594,7 +592,7 @@ class RecursiveForecaster(_GroupForecaster):
             bootstrap_prediction_data = pd.concat(bootstrap_pred_data_list, axis=0).reset_index(drop=True)
 
         # calculate percentiles from the bootstrapped predictions
-        for a in self._alphas:
+        for a in [self._alpha / 2, 1 - self._alpha / 2]:
             current_pi = bootstrap_prediction_data[[self.id_var, self.timestep_var, 'Forecast']].groupby([self.id_var, self.timestep_var]).aggregate({'Forecast': lambda x: x.quantile(a)}).reset_index()
             current_pi = current_pi.rename(columns={'Forecast': f'Forecast_{a:.3f}'})
             prediction_data = pd.merge(left=prediction_data, right=current_pi, on=[self.id_var, self.timestep_var], how='left')

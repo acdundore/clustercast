@@ -551,13 +551,13 @@ class RecursiveForecaster(_GroupForecaster):
                 # define the prediction data
                 if step == 1:
                     # Create sets of the data for each bootstrap iteration that includes the iteration number
-                    data = pd.concat([self.data.copy().assign(bootstrap_iter=i) for i in range(bootstrap_iter)], axis=0)
+                    data = pd.concat([self.data.copy().assign(_bootstrap_iter=i) for i in range(bootstrap_iter)], axis=0)
                 else:
                     data = pd.concat([data, current_pred_data.rename(columns={'Forecast': self.endog_var})], axis=0)
                 
                 # get all timesteps and transform the data; include the bootstrap iteration in the transform
                 all_timesteps = self._get_all_timesteps(data)
-                data_trans = self._transform_data(data=data, all_timesteps=all_timesteps, lookaheads=1, bootstrap_iter_col=['bootstrap_iter'])
+                data_trans = self._transform_data(data=data, all_timesteps=all_timesteps, lookaheads=1, bootstrap_iter_col=['_bootstrap_iter'])
 
                 # get the most recent batch of data for prediction
                 data_pred = data_trans.loc[data_trans[self.timestep_var] == max(data_trans[self.timestep_var])]
@@ -594,7 +594,7 @@ class RecursiveForecaster(_GroupForecaster):
                 y_pred = self._reverse_transform_preds(y_pred, data_pred)
 
                 # store the prediction data
-                current_pred_data = data_pred[[self.id_var, self.timestep_var] + self.group_vars + ['bootstrap_iter']].copy()
+                current_pred_data = data_pred[[self.id_var, self.timestep_var] + self.group_vars + ['_bootstrap_iter']].copy()
                 current_pred_data['Forecast'] = y_pred 
                 current_pred_data[self.timestep_var] += self._inferred_timestep
                 bootstrap_pred_data_list.append(current_pred_data)

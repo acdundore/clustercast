@@ -489,27 +489,33 @@ class RecursiveForecaster(_GroupForecaster):
         for id in data_train[self.id_var].unique():
             self._in_sample_residuals_dict[id] = np.array(in_sample_residuals_df.loc[in_sample_residuals_df['ID'] == id, 'Residuals'])
 
-
-    def predict(self, steps=1, exog=None, bootstrap_iter=100):
-        # instantiate a list to store the predictions
+    def _recursive_loop(self, steps, exog, bootstrap_iter, bootstrap=False):
+        # create a list to store the bootstrapped prediction data
         pred_data_list = []
 
-        # check to see if the model needs exogenous variables to be passed
-        if len(self.exog_vars) > 0 and exog is None:
-            warnings.warn('The model was fit on exogenous features, but none were passed to the predict method.', UserWarning)
-
-        # make a prediction for each lookahead
+        # make predictions for each lookahead
         for step in range(1, steps + 1):
             # define the prediction data
             if step == 1:
-                data = self.data
-            if step != 1:
+                # if bootstrapping, create sets of the data for each bootstrap iteration that includes the iteration number; otherwise, just use the data
+                if bootstrap:
+                    data = pd.concat([self.data.copy().assign(_bootstrap_iter=i) for i in range(bootstrap_iter)], axis=0)
+                else:
+                    data = self.data
+            else:
                 data = pd.concat([data, current_pred_data.rename(columns={'Forecast': self.endog_var})], axis=0)
             
+            # get all timesteps in the data
             all_timesteps = self._get_all_timesteps(data)
-            self._data_trans = self._transform_data(data=data, all_timesteps=all_timesteps, lookaheads=1)
 
-            data_pred = self._data_trans.loc[self._data_trans[self.timestep_var] == max(self._data_trans[self.timestep_var])]
+            # transform the data; include bootstrap iteration column if necessary
+            if bootstrap:
+                data_trans = self._transform_data(data=data, all_timesteps=all_timesteps, lookaheads=1, bootstrap_iter_col=['_bootstrap_iter'])
+            else:
+                data_trans = self._transform_data(data=data, all_timesteps=all_timesteps, lookaheads=1)
+
+            # get the most recent batch of data for prediction
+            data_pred = data_trans.loc[data_trans[self.timestep_var] == max(data_trans[self.timestep_var])]
 
             # check to see if exogenous variables were passed to the predict method
             if exog is not None:
@@ -518,7 +524,7 @@ class RecursiveForecaster(_GroupForecaster):
 
                 # for each exogenous variable, infill it with the future data if it exists
                 for exog_var in self.exog_vars:
-                    future_exog_var = f"{exog_var}__FUTURE__"
+                    future_exog_var = f'{exog_var}__FUTURE__'
                     if future_exog_var in data_pred.columns:
                         # where the original variable is null, replace with future values
                         data_pred[exog_var] = data_pred[exog_var].fillna(data_pred[future_exog_var])
@@ -529,58 +535,8 @@ class RecursiveForecaster(_GroupForecaster):
             # train the model and make predictions
             y_pred = self._predictor.predict(X_pred)
 
-            # reverse transform the predictions as necessary
-            y_pred = self._reverse_transform_preds(y_pred, data_pred)
-
-            # store the prediction data
-            current_pred_data = data_pred[[self.id_var, self.timestep_var] + self.group_vars].copy()
-            current_pred_data['Forecast'] = y_pred 
-            current_pred_data[self.timestep_var] += self._inferred_timestep
-            pred_data_list.append(current_pred_data)
-
-        # transform the predictions to a single dataframe
-        prediction_data = pd.concat(pred_data_list, axis=0).reset_index(drop=True)
-
-        # perform bootstrapping if prediction intervals need to be generated
-        if self._alpha is not None:
-            # create a list to store the bootstrapped prediction data
-            bootstrap_pred_data_list = []
-
-            # make predictions for each lookahead
-            for step in range(1, steps + 1):
-                # define the prediction data
-                if step == 1:
-                    # Create sets of the data for each bootstrap iteration that includes the iteration number
-                    data = pd.concat([self.data.copy().assign(_bootstrap_iter=i) for i in range(bootstrap_iter)], axis=0)
-                else:
-                    data = pd.concat([data, current_pred_data.rename(columns={'Forecast': self.endog_var})], axis=0)
-                
-                # get all timesteps and transform the data; include the bootstrap iteration in the transform
-                all_timesteps = self._get_all_timesteps(data)
-                data_trans = self._transform_data(data=data, all_timesteps=all_timesteps, lookaheads=1, bootstrap_iter_col=['_bootstrap_iter'])
-
-                # get the most recent batch of data for prediction
-                data_pred = data_trans.loc[data_trans[self.timestep_var] == max(data_trans[self.timestep_var])]
-
-                # check to see if exogenous variables were passed to the predict method
-                if exog is not None:
-                    # merge the new exogenous variables onto the prediction dataframe, and change the old exogenous feature name for removal
-                    data_pred = pd.merge(left=data_pred, right=exog, on=[self.timestep_var, self.id_var], how='left', suffixes=(None, '__FUTURE__'))
-
-                    # for each exogenous variable, infill it with the future data if it exists
-                    for exog_var in self.exog_vars:
-                        future_exog_var = f'{exog_var}__FUTURE__'
-                        if future_exog_var in data_pred.columns:
-                            # where the original variable is null, replace with future values
-                            data_pred[exog_var] = data_pred[exog_var].fillna(data_pred[future_exog_var])
-
-                # get the X data for prediction
-                X_pred = data_pred[self._X_cols]
-
-                # train the model and make predictions
-                y_pred = self._predictor.predict(X_pred)
-
-                # add on randomly sampled residuals from the fitted values from respective time series
+            # if bootstrapping, add on randomly sampled residuals from the fitted values from respective time series
+            if bootstrap:
                 for id in data_pred[self.id_var].unique():
                     # get indices for current ID, and calculate length of samples to be taken
                     id_mask = data_pred[self.id_var] == id
@@ -590,22 +546,41 @@ class RecursiveForecaster(_GroupForecaster):
                     sampled_residuals = np.random.choice(a=self._in_sample_residuals_dict[id], size=n_instances)
                     y_pred[id_mask] += sampled_residuals
 
-                # reverse transform the predictions as necessary
-                y_pred = self._reverse_transform_preds(y_pred, data_pred)
+            # reverse transform the predictions as necessary
+            y_pred = self._reverse_transform_preds(y_pred, data_pred)
 
-                # store the prediction data
+            # store the prediction data (including bootstrap iteration, if necessary)
+            if bootstrap:
                 current_pred_data = data_pred[[self.id_var, self.timestep_var] + self.group_vars + ['_bootstrap_iter']].copy()
-                current_pred_data['Forecast'] = y_pred 
-                current_pred_data[self.timestep_var] += self._inferred_timestep
-                bootstrap_pred_data_list.append(current_pred_data)
+            else:
+                current_pred_data = data_pred[[self.id_var, self.timestep_var] + self.group_vars].copy()
+            current_pred_data['Forecast'] = y_pred 
+            current_pred_data[self.timestep_var] += self._inferred_timestep
+            pred_data_list.append(current_pred_data)
 
-            # transform the predictions to a single dataframe
-            bootstrap_prediction_data = pd.concat(bootstrap_pred_data_list, axis=0).reset_index(drop=True)
+        # transform the predictions to a single dataframe
+        prediction_data = pd.concat(pred_data_list, axis=0).reset_index(drop=True)
 
-        # calculate percentiles from the bootstrapped predictions
-        for a in [self._alpha / 2, 1 - self._alpha / 2]:
-            current_pi = bootstrap_prediction_data[[self.id_var, self.timestep_var, 'Forecast']].groupby([self.id_var, self.timestep_var]).aggregate({'Forecast': lambda x: x.quantile(a)}).reset_index()
-            current_pi = current_pi.rename(columns={'Forecast': f'Forecast_{a:.3f}'})
-            prediction_data = pd.merge(left=prediction_data, right=current_pi, on=[self.id_var, self.timestep_var], how='left')
+        return prediction_data
+
+
+    def predict(self, steps=1, exog=None, bootstrap_iter=100):
+        # check to see if the model needs exogenous variables to be passed
+        if len(self.exog_vars) > 0 and exog is None:
+            warnings.warn('The model was fit on exogenous features, but none were passed to the predict method.', UserWarning)
+
+        # perform recursive forecasting
+        prediction_data = self._recursive_loop(steps=steps, exog=exog, bootstrap_iter=bootstrap_iter, bootstrap=False)
+
+        # perform bootstrapping if prediction intervals need to be generated
+        if self._alpha is not None:
+            # perform recursive forecasting with bootstrapped residuals to generate many potential paths
+            bootstrap_prediction_data = self._recursive_loop(steps=steps, exog=exog, bootstrap_iter=bootstrap_iter, bootstrap=True)
+
+            # calculate percentiles from the bootstrapped predictions
+            for a in [self._alpha / 2, 1 - self._alpha / 2]:
+                current_pi = bootstrap_prediction_data[[self.id_var, self.timestep_var, 'Forecast']].groupby([self.id_var, self.timestep_var]).aggregate({'Forecast': lambda x: x.quantile(a)}).reset_index()
+                current_pi = current_pi.rename(columns={'Forecast': f'Forecast_{a:.3f}'})
+                prediction_data = pd.merge(left=prediction_data, right=current_pi, on=[self.id_var, self.timestep_var], how='left')
 
         return prediction_data

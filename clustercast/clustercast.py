@@ -234,7 +234,7 @@ class _GroupForecaster():
         return cqr_cal_size
     
     
-    def stationarity_test(self, p_threshold=0.05):
+    def stationarity_test(self):
         # create a list to store results
         row_list = []
         

@@ -11,7 +11,7 @@ import warnings
 
 
 class _GroupForecaster():
-    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={}):
+    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={}, base_regressor=None):
         self.data = data 
         self._data_trans = None
         self.endog_var = endog_var 
@@ -26,6 +26,7 @@ class _GroupForecaster():
         self.seasonality_onehot = seasonality_onehot
         self.seasonality_ordinal = seasonality_ordinal
         self.lgbm_kwargs = lgbm_kwargs
+        self.base_regressor = base_regressor
 
         # convert lags to a list if necessary
         if type(lags) == list:
@@ -271,7 +272,7 @@ class _GroupForecaster():
 
 
 class DirectForecaster(_GroupForecaster):
-    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={}):
+    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
             endog_var=endog_var, 
@@ -286,7 +287,8 @@ class DirectForecaster(_GroupForecaster):
             seasonality_fourier=seasonality_fourier, 
             seasonality_onehot=seasonality_onehot, 
             seasonality_ordinal=seasonality_ordinal,
-            lgbm_kwargs=lgbm_kwargs
+            lgbm_kwargs=lgbm_kwargs,
+            base_regressor=base_regressor
         )
 
     def fit(self, max_steps=1, alpha=None, cqr_cal_size='auto'):
@@ -312,9 +314,14 @@ class DirectForecaster(_GroupForecaster):
         # make a prediction for each lookahead
         for step in range(1, max_steps + 1):
             # create predictor object
-            current_predictor = LGBMRegressor(**self.lgbm_kwargs).set_params(**{'verbose': -1, 'objective': 'quantile', 'alpha': 0.5})
-            current_pi_lo_predictor = LGBMRegressor(**self.lgbm_kwargs).set_params(**{'verbose': -1, 'objective': 'quantile', 'alpha': (self._alpha / 2)})
-            current_pi_hi_predictor = LGBMRegressor(**self.lgbm_kwargs).set_params(**{'verbose': -1, 'objective': 'quantile', 'alpha': (1 - self._alpha / 2)})
+            if self.base_regressor is None:
+                current_predictor = LGBMRegressor(**self.lgbm_kwargs).set_params(**{'objective': 'quantile', 'alpha': 0.5})
+                current_pi_lo_predictor = LGBMRegressor(**self.lgbm_kwargs).set_params(**{'objective': 'quantile', 'alpha': (self._alpha / 2)})
+                current_pi_hi_predictor = LGBMRegressor(**self.lgbm_kwargs).set_params(**{'objective': 'quantile', 'alpha': (1 - self._alpha / 2)})
+            else:
+                current_predictor = self.base_regressor(alpha=0.5)
+                current_pi_lo_predictor = self.base_regressor(alpha=(self._alpha / 2))
+                current_pi_hi_predictor = self.base_regressor(alpha=(1 - self._alpha / 2))
 
             # define the target for the current lookahead and drop any rows with blank targets
             target = f'endog_lookahead_{str(step)}'
@@ -444,7 +451,7 @@ class DirectForecaster(_GroupForecaster):
     
 
 class RecursiveForecaster(_GroupForecaster):
-    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={}):
+    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
             endog_var=endog_var, 
@@ -459,7 +466,8 @@ class RecursiveForecaster(_GroupForecaster):
             seasonality_fourier=seasonality_fourier, 
             seasonality_onehot=seasonality_onehot, 
             seasonality_ordinal=seasonality_ordinal,
-            lgbm_kwargs=lgbm_kwargs
+            lgbm_kwargs=lgbm_kwargs,
+            base_regressor=base_regressor
         )
 
     def fit(self, alpha=None):
@@ -473,7 +481,10 @@ class RecursiveForecaster(_GroupForecaster):
             self._alpha = None
 
         # create predictor object
-        self._predictor = LGBMRegressor(**self.lgbm_kwargs).set_params(**{'verbose': -1, 'objective': 'quantile', 'alpha': 0.5})
+        if self.base_regressor is None:
+            self._predictor = LGBMRegressor(**self.lgbm_kwargs).set_params(**{'objective': 'quantile', 'alpha': 0.5})
+        else:
+            self._predictor = self.base_regressor()
 
         # define the target for the current lookahead and drop any rows with blank targets
         target = f'endog_lookahead_1'
@@ -568,7 +579,7 @@ class RecursiveForecaster(_GroupForecaster):
         return prediction_data
 
 
-    def predict(self, steps=1, exog=None, bootstrap_iter=100):
+    def predict(self, steps=1, exog=None, bootstrap_iter=500):
         # check to see if the model needs exogenous variables to be passed
         if len(self.exog_vars) > 0 and exog is None:
             warnings.warn('The model was fit on exogenous features, but none were passed to the predict method.', UserWarning)

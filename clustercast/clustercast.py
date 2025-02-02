@@ -11,14 +11,48 @@ import warnings
 
 
 class _GroupForecaster():
-    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={}, base_regressor=None):
+    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={}, base_regressor=None):
+        # checking types of the arguments
+        if not isinstance(data, pd.DataFrame):
+            raise TypeError('The data must be a pandas DataFrame.')
+        if not isinstance(group_vars, list):
+            raise TypeError('A list must be passed for the group_vars argument.')
+        if not isinstance(exog_vars, list):
+            raise TypeError('A list must be passed for the exog_vars argument.')
+        if not isinstance(boxcox, (float, int)):
+            raise TypeError('The boxcox argument must be a scalar numerical value.')
+        if not isinstance(differencing, bool):
+            raise TypeError('The differencing argument must be a boolean.')
+        if not isinstance(include_level, bool):
+            raise TypeError('The include_level argument must be a boolean.')
+        if not isinstance(lags, int) and not isinstance(lags, list):
+            raise TypeError('Either an integer or list of integers must be passed to the lags argument.')
+        if isinstance(lags, list) and not all([isinstance(x, int) for x in lags]):
+            raise TypeError('If a list is passed to the lags argument, it must only contain integers.')
+        if not isinstance(seasonality_fourier, dict):
+            raise TypeError('The seasonality_fourier argument must be a dictionary.')
+        if seasonality_fourier and not all(isinstance(k, int) and isinstance(v, int) for k, v in seasonality_fourier.items()):
+            raise TypeError('The seasonality_fourier dictionary must contain integer key:value pairs.')
+        if not isinstance(seasonality_onehot, list):
+            raise TypeError('The seasonality_onehot argument must be a list.')
+        if seasonality_onehot and not all(isinstance(x, int) for x in seasonality_onehot):
+            raise TypeError('The seasonality_onehot list must contain integers.')
+        if not isinstance(seasonality_ordinal, list):
+            raise TypeError('The seasonality_ordinal argument must be a list.')
+        if seasonality_ordinal and not all(isinstance(x, int) for x in seasonality_ordinal):
+            raise TypeError('The seasonality_ordinal list must contain integers.')
+        if not isinstance(lgbm_kwargs, dict):
+            raise TypeError('The lgbm_kwargs argument must be a dictionary.')
+        if base_regressor is not None and not isinstance(base_regressor, type):
+            raise TypeError('The base_regressor must be None or a class object.')
+        
         self.data = data 
         self._data_trans = None
         self.endog_var = endog_var 
         self.id_var = id_var 
+        self.timestep_var = timestep_var
         self.group_vars = group_vars 
         self.exog_vars = exog_vars 
-        self.timestep_var = timestep_var
         self.boxcox = boxcox
         self.differencing = differencing
         self.include_level = include_level
@@ -221,8 +255,11 @@ class _GroupForecaster():
             # set the CQR calibration set size to be max of largest season length vs dataset proportion
             cqr_cal_size = max(max_season_length, length_20_dataset)
         elif type(cqr_cal_size) == int:
-            pass
+            if cqr_cal_size <= 0:
+                raise ValueError(f'If cqr_cal_size is an integer, it must be positive.')
         elif type(cqr_cal_size) == float:
+            if not 0 < cqr_cal_size < 1:
+                raise ValueError(f'If cqr_cal_size is a float, it must be in the interval (0, 1).')
             cqr_cal_size = int(np.ceil(len(self._all_timesteps) * cqr_cal_size))
         else:
             raise ValueError(f'cqr_cal_size must be either \'auto\', an integer, or a float.')
@@ -234,8 +271,12 @@ class _GroupForecaster():
 
         return cqr_cal_size
     
-    
+
     def stationarity_test(self, test='both'):
+        # argument validation
+        if test not in ['adf', 'kpss', 'both']:
+            raise ValueError('Either \'adf\', \'kpss\', or \'both\' must be passed to the test argument.')
+        
         # create a list to store results
         row_list = []
         
@@ -272,13 +313,13 @@ class _GroupForecaster():
 
 
 class DirectForecaster(_GroupForecaster):
-    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
+    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
             endog_var=endog_var, 
             id_var=id_var, 
-            group_vars=group_vars, 
             timestep_var=timestep_var, 
+            group_vars=group_vars, 
             exog_vars=exog_vars, 
             boxcox=boxcox, 
             differencing=differencing, 
@@ -291,7 +332,16 @@ class DirectForecaster(_GroupForecaster):
             base_regressor=base_regressor
         )
 
+
     def fit(self, max_steps=1, alpha=None, cqr_cal_size='auto'):
+        # argument validation
+        if not isinstance(max_steps, int) and max_steps <= 0:
+            raise TypeError('The max_steps argument must be a positive integer.')
+        if alpha is not None and (not isinstance(alpha, float) or not 0 < alpha < 1):
+            raise TypeError('The alpha argument must either be None or a float between 0 and 1.')
+        if cqr_cal_size is not None and cqr_cal_size != 'auto' and not isinstance(cqr_cal_size, (int, float)):
+            raise TypeError('The cqr_cal_size argument must either be None, \'auto\', a positive integer, or a float between 0 and 1.')
+        
         # determine CQR calibration set size
         if cqr_cal_size is not None:
             cqr_cal_size = self._determine_cqr_cal_size(cqr_cal_size) 
@@ -394,7 +444,12 @@ class DirectForecaster(_GroupForecaster):
             self._pi_lo_predictors.append(current_pi_lo_predictor)
             self._pi_hi_predictors.append(current_pi_hi_predictor)
 
+
     def predict(self, steps=1):
+        # argument validation
+        if not isinstance(steps, int) and steps <= 0:
+            raise TypeError('The steps argument must be a positive integer.')
+        
         # instantiate a list to store the predictions
         pred_data_list = []
 
@@ -451,13 +506,13 @@ class DirectForecaster(_GroupForecaster):
     
 
 class RecursiveForecaster(_GroupForecaster):
-    def __init__(self, data, endog_var, id_var, group_vars, timestep_var, exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
+    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
             endog_var=endog_var, 
             id_var=id_var, 
-            group_vars=group_vars, 
             timestep_var=timestep_var, 
+            group_vars=group_vars, 
             exog_vars=exog_vars, 
             boxcox=boxcox, 
             differencing=differencing, 
@@ -470,7 +525,12 @@ class RecursiveForecaster(_GroupForecaster):
             base_regressor=base_regressor
         )
 
+
     def fit(self, alpha=None):
+        # argument validation
+        if alpha is not None and (not isinstance(alpha, float) or not 0 < alpha < 1):
+            raise TypeError('The alpha argument must either be None or a float between 0 and 1.')
+        
         # transform the data
         self._data_trans = self._transform_data(data=self.data, all_timesteps=self._all_timesteps, lookaheads=1)
 
@@ -504,7 +564,8 @@ class RecursiveForecaster(_GroupForecaster):
         for id in data_train[self.id_var].unique():
             self._in_sample_residuals_dict[id] = np.array(in_sample_residuals_df.loc[in_sample_residuals_df['ID'] == id, 'Residuals'])
 
-    def _recursive_loop(self, steps, exog, bootstrap_iter, bootstrap=False):
+
+    def _recursive_loop(self, steps, exog_data, bootstrap_iter, bootstrap=False):
         # create a list to store the bootstrapped prediction data
         pred_data_list = []
 
@@ -533,9 +594,9 @@ class RecursiveForecaster(_GroupForecaster):
             data_pred = data_trans.loc[data_trans[self.timestep_var] == max(data_trans[self.timestep_var])]
 
             # check to see if exogenous variables were passed to the predict method
-            if exog is not None:
+            if exog_data is not None:
                 # merge the new exogenous variables onto the prediction dataframe, and change the old exogenous feature name for removal
-                data_pred = pd.merge(left=data_pred, right=exog, on=[self.timestep_var, self.id_var], how='left', suffixes=(None, '__FUTURE__'))
+                data_pred = pd.merge(left=data_pred, right=exog_data, on=[self.timestep_var, self.id_var], how='left', suffixes=(None, '__FUTURE__'))
 
                 # for each exogenous variable, infill it with the future data if it exists
                 for exog_var in self.exog_vars:
@@ -579,18 +640,26 @@ class RecursiveForecaster(_GroupForecaster):
         return prediction_data
 
 
-    def predict(self, steps=1, exog=None, bootstrap_iter=500):
+    def predict(self, steps=1, exog_data=None, bootstrap_iter=500):
+        # argument validation
+        if not isinstance(steps, int) and steps <= 0:
+            raise TypeError('The steps argument must be a positive integer.')
+        if exog_data is not None and not isinstance(exog_data, pd.DataFrame):
+            raise TypeError('The data must be either None or a pandas DataFrame.')
+        if not isinstance(bootstrap_iter, int) and bootstrap_iter < 10:
+            raise TypeError('The steps argument must be a an integer and greater than or equal to 10.')
+        
         # check to see if the model needs exogenous variables to be passed
-        if len(self.exog_vars) > 0 and exog is None:
+        if len(self.exog_vars) > 0 and exog_data is None:
             warnings.warn('The model was fit on exogenous features, but none were passed to the predict method.', UserWarning)
 
         # perform recursive forecasting
-        prediction_data = self._recursive_loop(steps=steps, exog=exog, bootstrap_iter=bootstrap_iter, bootstrap=False)
+        prediction_data = self._recursive_loop(steps=steps, exog_data=exog_data, bootstrap_iter=bootstrap_iter, bootstrap=False)
 
         # perform bootstrapping if prediction intervals need to be generated
         if self._alpha is not None:
             # perform recursive forecasting with bootstrapped residuals to generate many potential paths
-            bootstrap_prediction_data = self._recursive_loop(steps=steps, exog=exog, bootstrap_iter=bootstrap_iter, bootstrap=True)
+            bootstrap_prediction_data = self._recursive_loop(steps=steps, exog_data=exog_data, bootstrap_iter=bootstrap_iter, bootstrap=True)
 
             # calculate percentiles from the bootstrapped predictions
             for a in [self._alpha / 2, 1 - self._alpha / 2]:

@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np 
 import datetime as dt 
 from lightgbm import LGBMRegressor 
-from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.stattools import adfuller, kpss
 
 from collections import Counter
 from itertools import product
@@ -234,7 +234,7 @@ class _GroupForecaster():
         return cqr_cal_size
     
     
-    def stationarity_test(self):
+    def stationarity_test(self, test='both'):
         # create a list to store results
         row_list = []
         
@@ -249,13 +249,17 @@ class _GroupForecaster():
             
             # test raw data
             raw_ts = self.data.loc[self.data[self.id_var]==id, self.endog_var].dropna()
-            adf_raw = adfuller(raw_ts)
-            current_row['Raw ADF p-value'] = adf_raw[1]
+            if test == 'adf' or test == 'both':
+                current_row['Raw ADF p-value'] = adfuller(raw_ts)[1]
+            if test == 'kpss' or test == 'both':
+                current_row['Raw KPSS p-value'] = kpss(raw_ts)[1]
             
             # test transformed data
             trans_ts = data_trans.loc[data_trans[self.id_var]==id, 'endog'].dropna()
-            adf_trans = adfuller(trans_ts)
-            current_row['Transformed ADF p-value'] = adf_trans[1]
+            if test == 'adf' or test == 'both':
+                current_row['Transformed ADF p-value'] = adfuller(trans_ts)[1]
+            if test == 'kpss' or test == 'both':
+                current_row['Transformed KPSS p-value'] = kpss(trans_ts)[1]
 
             # store the row
             row_list.append(current_row)

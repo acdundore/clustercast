@@ -11,7 +11,7 @@ import warnings
 
 
 class _GroupForecaster():
-    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={}, base_regressor=None):
+    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={}, base_regressor=None):
         # checking types of the arguments
         if not isinstance(data, pd.DataFrame):
             raise TypeError('The data must be a pandas DataFrame.')
@@ -25,6 +25,8 @@ class _GroupForecaster():
             raise TypeError('The differencing argument must be a boolean.')
         if not isinstance(include_level, bool):
             raise TypeError('The include_level argument must be a boolean.')
+        if not isinstance(include_timestep, bool):
+            raise TypeError('The include_timestep argument must be a boolean.')
         if not isinstance(lags, int) and not isinstance(lags, list):
             raise TypeError('Either an integer or list of integers must be passed to the lags argument.')
         if isinstance(lags, list) and not all([isinstance(x, int) for x in lags]):
@@ -56,6 +58,7 @@ class _GroupForecaster():
         self.boxcox = boxcox
         self.differencing = differencing
         self.include_level = include_level
+        self.include_timestep = include_timestep
         self.seasonality_fourier = seasonality_fourier
         self.seasonality_onehot = seasonality_onehot
         self.seasonality_ordinal = seasonality_ordinal
@@ -210,14 +213,21 @@ class _GroupForecaster():
         # merging seasonality features with the transformed data
         data_trans = pd.merge(left=data_trans, right=seasonality_features, how='left', on=self.timestep_var)
 
+        # add a feature that tracks the timesteps if necessary
+        if self.include_timestep:
+            timestep_increment_feature = pd.DataFrame({self.timestep_var: all_timesteps, 'Timestep Index': range(len(all_timesteps))})
+            data_trans = pd.merge(left=data_trans, right=timestep_increment_feature, how='left', on=self.timestep_var)
+
         # onehot encode the grouping features
         for group in self.group_vars:
             for group_val in list(data_trans[group].dropna().unique()):
                 data_trans[f'{group}_{group_val}'] = (data_trans[group] == group_val).astype(int)
 
         # store a list of all training features
-        target_cols = [c for c in data_trans if 'endog_lookahead_' in c]
-        training_cols = [c for c in data_trans if c not in [self.id_var, self.timestep_var, self.endog_var] + self.group_vars + target_cols + bootstrap_iter_col and not re.fullmatch(r'^_endog_.*', c)]
+        target_cols = [c for c in data_trans.columns if 'endog_lookahead_' in c]
+        forbidden_cols = [self.id_var, self.timestep_var, self.endog_var] + self.group_vars + target_cols + bootstrap_iter_col
+        forbidden_cols += [c for c in data_trans.columns if re.fullmatch(r'^_endog_.*', c)] # adding any intermediate endogenous calculation
+        training_cols = [c for c in data_trans.columns if c not in forbidden_cols]
         self._X_cols = training_cols
 
         return data_trans
@@ -313,7 +323,7 @@ class _GroupForecaster():
 
 
 class DirectForecaster(_GroupForecaster):
-    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
+    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
             endog_var=endog_var, 
@@ -324,6 +334,7 @@ class DirectForecaster(_GroupForecaster):
             boxcox=boxcox, 
             differencing=differencing, 
             include_level=include_level,
+            include_timestep=include_timestep,
             lags=lags, 
             seasonality_fourier=seasonality_fourier, 
             seasonality_onehot=seasonality_onehot, 
@@ -506,7 +517,7 @@ class DirectForecaster(_GroupForecaster):
     
 
 class RecursiveForecaster(_GroupForecaster):
-    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
+    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
             endog_var=endog_var, 
@@ -517,6 +528,7 @@ class RecursiveForecaster(_GroupForecaster):
             boxcox=boxcox, 
             differencing=differencing, 
             include_level=include_level,
+            include_timestep=include_timestep,
             lags=lags, 
             seasonality_fourier=seasonality_fourier, 
             seasonality_onehot=seasonality_onehot, 

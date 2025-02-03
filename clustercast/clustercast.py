@@ -75,6 +75,10 @@ class _GroupForecaster():
         self._infer_timestep()
         self._all_timesteps = self._get_all_timesteps(self.data)
 
+        # check to make sure that there are not duplicate entries at any timestep for each series
+        if len(self.data) != len(self.data.drop_duplicates(subset=[self.id_var, self.timestep_var])):
+            raise ValueError('At least one timestep has multiple values within particular series.')
+
 
     def _infer_timestep(self):
         # get all unique timestep values

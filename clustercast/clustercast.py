@@ -11,7 +11,7 @@ import warnings
 
 
 class _GroupForecaster():
-    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={}, base_regressor=None):
+    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, sample_weight_halflife=None, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         # checking types of the arguments
         if not isinstance(data, pd.DataFrame):
             raise TypeError('The data must be a pandas DataFrame.')
@@ -47,6 +47,10 @@ class _GroupForecaster():
             raise TypeError('The lgbm_kwargs argument must be a dictionary.')
         if base_regressor is not None and not isinstance(base_regressor, type):
             raise TypeError('The base_regressor must be None or a class object.')
+        if sample_weight_halflife is not None and not isinstance(sample_weight_halflife, (int, float)):
+            raise TypeError('The sample_weight_halflife argument must be either None or a positive number.')
+        if sample_weight_halflife is not None and sample_weight_halflife <= 0:
+            raise ValueError('The sample_weight_halflife argument must be positive.')
         
         self.data = data 
         self._data_trans = None
@@ -59,6 +63,7 @@ class _GroupForecaster():
         self.differencing = differencing
         self.include_level = include_level
         self.include_timestep = include_timestep
+        self.sample_weight_halflife = sample_weight_halflife
         self.seasonality_fourier = seasonality_fourier
         self.seasonality_onehot = seasonality_onehot
         self.seasonality_ordinal = seasonality_ordinal
@@ -251,6 +256,26 @@ class _GroupForecaster():
         return y_pred
     
 
+    def _calculate_sample_weights(self, data):
+        # Get the most recent timestep in the entire dataset
+        max_timestep = data[self.timestep_var].max()
+        
+        # Convert inferred timestep to timedelta if it's a dateoffset
+        if isinstance(self._inferred_timestep, pd.tseries.offsets.DateOffset):
+            reference_dt = dt.datetime(year=2000, month=1, day=1, hour=0, minute=0)
+            inferred_timedelta = (reference_dt + self._inferred_timestep) - reference_dt
+        else:
+            inferred_timedelta = self._inferred_timestep
+        
+        # Calculate time differences in number of timesteps
+        time_diff = (max_timestep - data[self.timestep_var]) / inferred_timedelta
+
+        # Calculate weights using exponential decay
+        weights = np.exp(-np.log(2) * np.array(time_diff) / self.sample_weight_halflife)
+
+        return weights
+    
+
     def _determine_cqr_cal_size(self, cqr_cal_size):
         # determine maximum season length
         max_season_length = 0
@@ -405,7 +430,7 @@ class DirectForecaster(_GroupForecaster):
                     return self.regressor.predict(X)
     """
 
-    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
+    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, sample_weight_halflife=None, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
             endog_var=endog_var, 
@@ -418,6 +443,7 @@ class DirectForecaster(_GroupForecaster):
             include_level=include_level,
             include_timestep=include_timestep,
             lags=lags, 
+            sample_weight_halflife=sample_weight_halflife,
             seasonality_fourier=seasonality_fourier, 
             seasonality_onehot=seasonality_onehot, 
             seasonality_ordinal=seasonality_ordinal,
@@ -510,8 +536,14 @@ class DirectForecaster(_GroupForecaster):
             X_train = data_train[self._X_cols]
             y_train = data_train[target]
 
+            # Calculate sample weights if halflife is specified
+            if self.sample_weight_halflife is None:
+                current_predictor.fit(X_train, y_train)
+            else:
+                sample_weights = self._calculate_sample_weights(data_train)
+                current_predictor.fit(X_train, y_train, sample_weight=sample_weights)
+
             # train the model and store it
-            current_predictor.fit(X_train, y_train)
             self._predictors.append(current_predictor)
 
             # fitting prediction interval models
@@ -527,8 +559,13 @@ class DirectForecaster(_GroupForecaster):
                 ids_cal_pi = data_train.loc[data_train[self.timestep_var] >= cqr_cal_cutoff, self.id_var]
 
                 # train the prediction interval models and store them
-                current_pi_lo_predictor.fit(X_train_pi, y_train_pi)
-                current_pi_hi_predictor.fit(X_train_pi, y_train_pi)
+                if self.sample_weight_halflife is None:
+                    current_pi_lo_predictor.fit(X_train_pi, y_train_pi)
+                    current_pi_hi_predictor.fit(X_train_pi, y_train_pi)
+                else:
+                    sample_weights = self._calculate_sample_weights(data_train.loc[data_train[self.timestep_var] < cqr_cal_cutoff])
+                    current_pi_lo_predictor.fit(X_train_pi, y_train_pi, sample_weight=sample_weights)
+                    current_pi_hi_predictor.fit(X_train_pi, y_train_pi, sample_weight=sample_weights)
                 
                 # make low and high predictions
                 y_cal_pi_pred_lo = current_pi_lo_predictor.predict(X_cal_pi)
@@ -557,8 +594,13 @@ class DirectForecaster(_GroupForecaster):
                 self._cqr_Q.append(current_Q)
 
             # train the prediction interval models on the full dataset (if using CQR, retrain on all data now that Q values are calculated)
-            current_pi_lo_predictor.fit(X_train, y_train)
-            current_pi_hi_predictor.fit(X_train, y_train)
+            if self.sample_weight_halflife is None:
+                current_pi_lo_predictor.fit(X_train, y_train)
+                current_pi_hi_predictor.fit(X_train, y_train)
+            else:
+                sample_weights = self._calculate_sample_weights(data_train)
+                current_pi_lo_predictor.fit(X_train, y_train, sample_weight=sample_weights)
+                current_pi_hi_predictor.fit(X_train, y_train, sample_weight=sample_weights)
 
             # store the trained quantile regressors
             self._pi_lo_predictors.append(current_pi_lo_predictor)
@@ -729,7 +771,7 @@ class RecursiveForecaster(_GroupForecaster):
                     return self.regressor.predict(X)
     """
 
-    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
+    def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, sample_weight_halflife=None, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
             endog_var=endog_var, 
@@ -742,6 +784,7 @@ class RecursiveForecaster(_GroupForecaster):
             include_level=include_level,
             include_timestep=include_timestep,
             lags=lags, 
+            sample_weight_halflife=sample_weight_halflife,
             seasonality_fourier=seasonality_fourier, 
             seasonality_onehot=seasonality_onehot, 
             seasonality_ordinal=seasonality_ordinal,
@@ -795,8 +838,12 @@ class RecursiveForecaster(_GroupForecaster):
         X_train = data_train[self._X_cols]
         y_train = data_train[target]
 
-        # train the model and store it
-        self._predictor.fit(X_train, y_train)
+        # Calculate sample weights if halflife is specified
+        if self.sample_weight_halflife is None:
+            self._predictor.fit(X_train, y_train)
+        else:
+            sample_weights = self._calculate_sample_weights(data_train)
+            self._predictor.fit(X_train, y_train, sample_weight=sample_weights)
 
         # store the in-sample residuals for each time series in a dictionary
         in_sample_residuals = y_train - self._predictor.predict(X_train)

@@ -98,9 +98,9 @@ class _GroupForecaster():
             quarterly_bounds = [3 * 29 * 24 * 60 * 60, 3 * 32 * 24 * 60 * 60]
             monthly_bounds = [29 * 24 * 60 * 60, 32 * 24 * 60 * 60]
             weekly_bounds = [0.99 * 7 * 24 * 60 * 60, 1.01 * 7 * 24 * 60 * 60]
-            daily_bounds = [.99 * 24 * 60 * 60, 1.01 * 24 * 60 * 60]
-            hourly_bounds = [.99 * 60 * 60, 1.01 * 60 * 60]
-            minute_bounds = [.99 * 60, 1.01 * 60]
+            daily_bounds = [0.99 * 24 * 60 * 60, 1.01 * 24 * 60 * 60]
+            hourly_bounds = [0.99 * 60 * 60, 1.01 * 60 * 60]
+            minute_bounds = [0.99 * 60, 1.01 * 60]
 
             # infer the timestep using a date offset
             if yearly_bounds[0] < timestep_mode_in_sec < yearly_bounds[1]:
@@ -327,6 +327,84 @@ class _GroupForecaster():
 
 
 class DirectForecaster(_GroupForecaster):
+    """
+    A forecaster that makes direct multi-step predictions using LightGBM.
+
+    This class implements direct multi-step forecasting by training separate models for each forecast horizon.
+    It supports both point forecasts and prediction intervals, with optional conformal quantile regression (CQR)
+    for improved interval coverage.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        The input data containing the time series and any additional variables.
+
+    endog_var : str
+        The name of the target variable to forecast.
+
+    id_var : str
+        The name of the column containing unique identifiers for each time series.
+
+    timestep_var : str
+        The name of the column containing the time steps.
+
+    group_vars : list, optional (default=[])
+        List of column names containing categorical variables used to group the time series.
+
+    exog_vars : list, optional (default=[])
+        List of column names containing exogenous variables to use as predictors.
+
+    boxcox : float or int, optional (default=1)
+        The Box-Cox transformation parameter. Use 1 for no transformation.
+
+    differencing : bool, optional (default=False)
+        Whether to apply first-order differencing to the target variable.
+
+    include_level : bool, optional (default=True)
+        Whether to include the level of the target variable as a feature. When True, this is only included
+        when differencing is applied.
+
+    include_timestep : bool, optional (default=False)
+        Whether to include the time step as a feature. If True, an integer index starting at zero is mapped
+        to each unique timestep chronologically and passed to the regressor.
+
+    lags : int or list, optional (default=1)
+        The number of lags to use as features, or a list of specific lag values.
+
+    seasonality_fourier : dict, optional (default={})
+        Dictionary with periods as the keys and number of Fourier terms as values.
+
+    seasonality_onehot : list, optional (default=[])
+        List of periods for one-hot encoded seasonality features.
+    
+    seasonality_ordinal : list, optional (default=[])
+        List of periods for ordinal encoded seasonality features.
+    
+    lgbm_kwargs : dict, optional (default={'verbose': -1})
+        Additional keyword arguments to pass to LGBMRegressor.
+    
+    base_regressor : class, optional (default=None)
+        Alternative regressor class to use instead of LGBMRegressor. You can create an custom wrapper for
+        any statistical or machine learning regressor if the following criteria are met:
+        -   The regressor must be capable of quantile regression, and must have an option to pass an "alpha"
+            parameter that defines the quantile for prediction (similar to LGBMRegressor implementation).
+        -   The class must have fit and predict methods with arguments of (X, y) similar to the scikit-learn implementation.
+        
+        An example is shown below of a valid custom class (using XGBoost):
+            
+            class custom_regressor():
+                def __init__(self, alpha=0.5): # provide the quantile as an argument
+                    # create a custom XGBoost regressor using pinball loss with a specified quantile
+                    self.regressor = XGBRegressor(alpha=0.1, objective='reg:quantileerror', quantile_alpha=alpha)
+
+                def fit(self, X, y): # standard fit method
+                    self.regressor.fit(X, y)
+                    return self 
+                
+                def predict(self, X, y=None): # standard predict method
+                    return self.regressor.predict(X)
+    """
+
     def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
@@ -349,6 +427,33 @@ class DirectForecaster(_GroupForecaster):
 
 
     def fit(self, max_steps=1, alpha=None, cqr_cal_size='auto'):
+        """
+        Create and fit the forecasting models up to a defined forecast horizon.
+
+        Trains separate models for each lookahead timestep up to max_steps ahead. For each horizon,
+        trains a point forecast model and optionally prediction interval models with CQR calibration.
+
+        Parameters
+        ----------
+        max_steps : int, optional (default=1)
+            Maximum number of steps ahead to forecast.
+        
+        alpha : float, optional (default=None)
+            Miscoverage rate for prediction intervals (e.g., 0.05 for 95% intervals).
+            If None, only point forecasts are produced.
+        
+        cqr_cal_size : str, int, or float, optional (default='auto')
+            Size of the calibration set for CQR:
+            -   'auto': Automatically determine size based on data. Uses a minimum of a full season's data
+                (using the largest season) or 20% of the data.
+            -   int: Number of time steps to use.
+            -   float: Fraction of the total time steps to use in (0, 1).
+            If None, no CQR calibration is performed and standard quantile regression is used.
+
+        Returns
+        ------
+        None
+        """
         # argument validation
         if not isinstance(max_steps, int) and max_steps <= 0:
             raise TypeError('The max_steps argument must be a positive integer.')
@@ -461,6 +566,31 @@ class DirectForecaster(_GroupForecaster):
 
 
     def predict(self, steps=1):
+        """
+        Generate forecasts for multiple steps ahead.
+
+        Makes predictions using the trained models for each lookahead timestep up to the specified
+        number of steps ahead. If prediction intervals were enabled during fitting, also generates
+        interval forecasts.
+
+        Parameters
+        ----------
+        steps : int, optional (default=1)
+            Number of steps ahead to forecast. If this value is greater than the maximum number of
+            timesteps the forecaster was trained on during the fit method, the fit method is called
+            again with the lengthened forecast horizon.
+
+        Returns
+        -------
+        pandas.DataFrame
+            DataFrame containing the forecasts with columns:
+            -   ID variable
+            -   Timestep variable
+            -   Group variables (if any)
+            -   'Forecast': Point forecasts
+            -   'Forecast_{alpha/2}' and 'Forecast_{1-alpha/2}': Lower and upper prediction
+                interval bounds (if alpha was specified during fitting)
+        """
         # argument validation
         if not isinstance(steps, int) and steps <= 0:
             raise TypeError('The steps argument must be a positive integer.')
@@ -521,6 +651,84 @@ class DirectForecaster(_GroupForecaster):
     
 
 class RecursiveForecaster(_GroupForecaster):
+    """
+    A forecaster that makes recursive multi-step predictions using LightGBM.
+
+    This class implements recursive multi-step forecasting by iteratively using predictions as inputs
+    for subsequent predictions. It supports both point forecasts and prediction intervals, with
+    bootstrapped residuals used to generate intervals.
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        The input data containing the time series and any additional variables.
+
+    endog_var : str
+        The name of the target variable to forecast.
+
+    id_var : str
+        The name of the column containing unique identifiers for each time series.
+
+    timestep_var : str
+        The name of the column containing the time steps.
+
+    group_vars : list, optional (default=[])
+        List of column names containing categorical variables used to group the time series.
+
+    exog_vars : list, optional (default=[])
+        List of column names containing exogenous variables to use as predictors.
+
+    boxcox : float or int, optional (default=1)
+        The Box-Cox transformation parameter. Use 1 for no transformation.
+
+    differencing : bool, optional (default=False)
+        Whether to apply first-order differencing to the target variable.
+
+    include_level : bool, optional (default=True)
+        Whether to include the level of the target variable as a feature. When True, this is only included
+        when differencing is applied.
+
+    include_timestep : bool, optional (default=False)
+        Whether to include the time step as a feature. If True, an integer index starting at zero is mapped
+        to each unique timestep chronologically and passed to the regressor.
+
+    lags : int or list, optional (default=1)
+        The number of lags to use as features, or a list of specific lag values.
+
+    seasonality_fourier : dict, optional (default={})
+        Dictionary with periods as the keys and number of Fourier terms as values.
+
+    seasonality_onehot : list, optional (default=[])
+        List of periods for one-hot encoded seasonality features.
+    
+    seasonality_ordinal : list, optional (default=[])
+        List of periods for ordinal encoded seasonality features.
+    
+    lgbm_kwargs : dict, optional (default={'verbose': -1})
+        Additional keyword arguments to pass to LGBMRegressor.
+    
+    base_regressor : class, optional (default=None)
+        Alternative regressor class to use instead of LGBMRegressor. You can create an custom wrapper for
+        any statistical or machine learning regressor if the following criteria are met:
+        -   The regressor must be capable of quantile regression, and must have an option to pass an "alpha"
+            parameter that defines the quantile for prediction (similar to LGBMRegressor implementation).
+        -   The class must have fit and predict methods with arguments of (X, y) similar to the scikit-learn implementation.
+        
+        An example is shown below of a valid custom class (using XGBoost):
+            
+            class custom_regressor():
+                def __init__(self, alpha=0.5): # provide the quantile as an argument
+                    # create a custom XGBoost regressor using pinball loss with a specified quantile
+                    self.regressor = XGBRegressor(alpha=0.1, objective='reg:quantileerror', quantile_alpha=alpha)
+
+                def fit(self, X, y): # standard fit method
+                    self.regressor.fit(X, y)
+                    return self 
+                
+                def predict(self, X, y=None): # standard predict method
+                    return self.regressor.predict(X)
+    """
+
     def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
         super().__init__(
             data=data,
@@ -543,6 +751,23 @@ class RecursiveForecaster(_GroupForecaster):
 
 
     def fit(self, alpha=None):
+        """
+        Create and fit the forecasting model.
+
+        Trains a single model that will be used recursively for multi-step forecasting. The model can
+        optionally be used to generate prediction intervals via bootstrapped residuals.
+
+        Parameters
+        ----------
+        alpha : float, optional (default=None)
+            Miscoverage rate for prediction intervals (e.g., 0.05 for 95% intervals).
+            If None, only point forecasts are produced.
+
+        Returns
+        ------
+        None
+        """
+
         # argument validation
         if alpha is not None and (not isinstance(alpha, float) or not 0 < alpha < 1):
             raise TypeError('The alpha argument must either be None or a float between 0 and 1.')
@@ -657,6 +882,33 @@ class RecursiveForecaster(_GroupForecaster):
 
 
     def predict(self, steps=1, exog_data=None, bootstrap_iter=500):
+        """
+        Generate forecasts for multiple steps ahead.
+
+        Makes recursive multi-step predictions by using predictions as inputs for subsequent predictions.
+        Optionally generates prediction intervals via bootstrapped residuals.
+
+        Parameters
+        ----------
+        steps : int, optional (default=1)
+            Number of steps ahead to forecast.
+
+        exog_data : pandas.DataFrame, optional (default=None)
+            Future values of exogenous variables. Must contain the same columns as the exogenous
+            variables used during fitting, along with the ID and timestep variables.
+
+        bootstrap_iter : int, optional (default=500)
+            Number of bootstrap iterations to use when generating prediction intervals. It is recommended
+            to use a bare minimum of 100 bootstrap iterations. An excessive number of iterations will
+            be computationally intensive. Only used when alpha was specified during fitting.
+
+        Returns
+        -------
+        pandas.DataFrame
+            A dataframe containing the forecasts and optionally prediction intervals for each
+            time series at each forecast horizon.
+        """
+
         # argument validation
         if not isinstance(steps, int) and steps <= 0:
             raise TypeError('The steps argument must be a positive integer.')

@@ -396,6 +396,10 @@ class DirectForecaster(_GroupForecaster):
     lags : int or list, optional (default=1)
         The number of lags to use as features, or a list of specific lag values.
 
+    sample_weight_halflife : int, optional (default=None)
+        The halflife, in number of timesteps, used to calculate sample weights during the model fit (more recent
+        timesteps have a heavier weight). If None, all samples are weighted equally.
+
     seasonality_fourier : dict, optional (default={})
         Dictionary with periods as the keys and number of Fourier terms as values.
 
@@ -736,6 +740,10 @@ class RecursiveForecaster(_GroupForecaster):
 
     lags : int or list, optional (default=1)
         The number of lags to use as features, or a list of specific lag values.
+
+    sample_weight_halflife : int, optional (default=None)
+        The halflife, in number of timesteps, used to calculate sample weights during the model fit (more recent
+        timesteps have a heavier weight). If None, all samples are weighted equally.
 
     seasonality_fourier : dict, optional (default={})
         Dictionary with periods as the keys and number of Fourier terms as values.

@@ -1,0 +1,13 @@
+site_name: Clustercast
+nav:
+    - 'Home': index.md
+    - 'Quick Start Examples': examples.md
+    - 'Clustercast API':
+        - 'DirectForecaster': DirectForecaster.md
+        - 'RecursiveForecaster': RecursiveForecaster.md
+theme: 
+    name: readthedocs
+    prev_next_buttons_location: None
+    navigation_depth: 3
+    collapse_navigation: True
+    titles_only: True

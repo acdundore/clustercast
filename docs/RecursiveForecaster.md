@@ -112,7 +112,7 @@ print(future_exog)
 
 ```python
 # import the model class
-from clustercast import DirectForecaster
+from clustercast import RecursiveForecaster
 
 # create the forecasting model
 model = RecursiveForecaster(

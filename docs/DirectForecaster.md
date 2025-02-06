@@ -48,8 +48,6 @@ Also supports prediction intervals with Conformalized Quantile Regression.
 | alpha : `float` | Miscoverage rate for prediction intervals (e.g., 0.05 for 95% <br>intervals). If `None`, only point forecasts are produced. |
 | cqr_cal_size : `str`, <br>`int`, or `float` | Size of the calibration set for CQR: <br>-`'auto'`: Automatically determine size based on data. Uses a minimum of a <br>full season's data (using the largest season) or 20% of the data. <br>-`int`: Number of time steps to use. <br>-`float`: Fraction of the total time steps to use in (0, 1).<br>-`None`, no CQR calibration is performed and standard quantile regression <br>is used. |
 
----
-
 **.predict**(*steps=1*)
 	
 >Generates forecasts and prediction intervals, if applicable.
@@ -64,6 +62,20 @@ prediction intervals.
 > | Returns | Description |
 |---|---|
 | forecasts : `pd.DataFrame` | DataFrame containing the forecasts with columns: <br>- ID variable <br>- Timestep variable <br>- Group variables (if applicable) <br>- 'Forecast': Point forecasts <br>- 'Forecast_{alpha/2}' and 'Forecast_{1-alpha/2}': Lower and upper <br>prediction interval bounds (if alpha was specified during fitting). |
+
+**.stationarity_test**(*test='both'*)
+	
+>Tests for stationarity of each time series before and after the model's transformations.
+Performs either Augmented Dickey-Fuller (ADF) test, Kwiatkowski-Phillips-Schmidt-Shin (KPSS) test, or both.
+The ADF test has a null hypothesis of non-stationarity, while KPSS has a null hypothesis of stationarity.
+
+> | Argument | Description |
+|---|---|
+| test : `str` | Which stationarity test(s) to perform: <br>-`'adf'`: Augmented Dickey-Fuller test only <br>-`'kpss'`: KPSS test only <br>-`'both'`: Both ADF and KPSS tests (default) |
+
+> | Returns | Description |
+|---|---|
+| results : `pd.DataFrame` | DataFrame containing test results with columns: <br>- ID variable <br>- 'Raw ADF p-value': ADF test p-value on raw data (optional) <br>- 'Raw KPSS p-value': KPSS test p-value on raw data (optional) <br>- 'Transformed ADF p-value': ADF test p-value after transform (optional) <br>- 'Transformed KPSS p-value': KPSS test p-value after transform (optional)|
 
 ---
 

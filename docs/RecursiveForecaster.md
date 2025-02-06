@@ -44,8 +44,6 @@ optionally be used to generate prediction intervals via bootstrapped residuals.
 |---|---|
 | alpha : `float` | Miscoverage rate for prediction intervals (e.g., 0.05 for 95% <br>intervals). If `None`, only point forecasts are produced. |
 
----
-
 **.predict**(*steps=1, exog_data=None, bootstrap_iter=500*)
 	
 >Generates forecasts for multiple steps ahead.
@@ -61,6 +59,20 @@ Optionally generates prediction intervals via bootstrapped residuals.
 > | Returns | Description |
 |---|---|
 | forecasts : `pd.DataFrame` | DataFrame containing the forecasts and optionally prediction intervals<br> for each time series at each forecast horizon. |
+
+**.stationarity_test**(*test='both'*)
+	
+>Tests for stationarity of each time series before and after the model's transformations.
+Performs either Augmented Dickey-Fuller (ADF) test, Kwiatkowski-Phillips-Schmidt-Shin (KPSS) test, or both.
+The ADF test has a null hypothesis of non-stationarity, while KPSS has a null hypothesis of stationarity.
+
+> | Argument | Description |
+|---|---|
+| test : `str` | Which stationarity test(s) to perform: <br>-`'adf'`: Augmented Dickey-Fuller test only <br>-`'kpss'`: KPSS test only <br>-`'both'`: Both ADF and KPSS tests (default) |
+
+> | Returns | Description |
+|---|---|
+| results : `pd.DataFrame` | DataFrame containing test results with columns: <br>- ID variable <br>- 'Raw ADF p-value': ADF test p-value on raw data (optional) <br>- 'Raw KPSS p-value': KPSS test p-value on raw data (optional) <br>- 'Transformed ADF p-value': ADF test p-value after transform (optional) <br>- 'Transformed KPSS p-value': KPSS test p-value after transform (optional)|
 
 ---
 

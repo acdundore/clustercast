@@ -4,7 +4,7 @@ The `RecursiveForecaster` class implements recursive multi-step forecasting, sup
 
 ---
 
-> *class* clustercast.**RecursiveForecaster**(*data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, sample_weight_halflife=None, seasonality_fourier={}, lgbm_kwargs={'verbose': -1}, base_regressor=None*)
+> *class* clustercast.**RecursiveForecaster**(*data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, sample_weight_halflife=None, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None*)
 
 ---
 
@@ -27,6 +27,8 @@ Once the model class has been instantiated, the parameters may not be changed.
 | lags : `int` or `list` | The number of lags, or a list of specific lag values, to use as features. |
 | sample_weight_halflife : `int` | The halflife, in number of timesteps, used to calculate sample weights <br>during the model fit (more recent timesteps have a heavier weight). If <br>`None`, all samples are weighted equally. |
 | seasonality_fourier : `dict` | Dictionary with periods as the keys and number of Fourier terms as <br>values. |
+| seasonality_onehot : `list` | List of periods for one-hot encoded seasonality features. |
+| seasonality_ordinal : `list` | List of periods for ordinal encoded seasonality features. |
 | lgbm_kwargs : `dict` | Additional keyword arguments to pass to LGBMRegressor, if no custom <br>base regressor is used. |
 | base_regressor : `class` | Alternative regressor class to use instead of LGBMRegressor. You can <br>create an custom wrapper for any statistical or machine learning <br>regressor if certain criteria are met. See the examples page for more <br>information. |
 

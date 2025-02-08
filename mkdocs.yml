@@ -1,7 +1,8 @@
 site_name: Clustercast
 nav:
     - 'Home': index.md
-    - 'Quick Start Examples': examples.md
+    - 'Quick Start Examples':
+        - 'Local (Single Series)': example_single-series.md
     - 'Clustercast API':
         - 'DirectForecaster': DirectForecaster.md
         - 'RecursiveForecaster': RecursiveForecaster.md

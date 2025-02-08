@@ -34,7 +34,9 @@ pip install clustercast
 
 ## Usage
 
-The forecasting models in `clustercast` are simple to use, but come with many additional parameters allowing the user to implement sophisticated preprocessing techniques with ease. An example using the recursive forecasting class is shown below:
+The forecasting models in `clustercast` are simple to use, but come with many additional parameters allowing the user to implement sophisticated preprocessing techniques with ease. 
+An example using the recursive forecasting class is shown below.
+In this example, there are 12 distinct time series representing sales over time for different regions and product categories.
 
 ```python
 # show the training data
@@ -97,8 +99,9 @@ print(forecast)
 
 [144 rows x 5 columns]
 ```
-
-This is a fairly basic example implementation without much thought put into preprocessing or model tuning. This example can be easily extended to accommodate these using the built-in functionality in `clustercast`!
+The output contains forecasts out to 12 months ahead for each of the 12 unique time series.
+This is a fairly basic example implementation without much thought put into preprocessing or model tuning. 
+This example can be easily extended and optimized using the built-in functionality in `clustercast`!
 
 ---
 

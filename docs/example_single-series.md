@@ -1,7 +1,9 @@
-# Local (Single Series) Forecasting
+# Local (Single-Series) Forecasting
 
-In this example, we will use the well-known airline passengers dataset to perform a simple single series forecast.
+In this example, we will use the well-known airline passengers dataset to perform a simple single-series forecast.
 We will walk through data preparation, then show creation of both recursive and direct forecast models.
+
+---
 
 ## Data Preparation
 

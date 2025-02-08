@@ -19,6 +19,7 @@ Key features include:
 - Model agnostic architecture supporting any custom ML model, with `LightGBM` as the default
 - Ability to tune the hyperparameters of the built-in `LightGBM` model
 - Handling of exogenous variables
+- Supports missing data (for both individual features and entire timesteps)
 
 Both forecasters share a similar API and handle data preprocessing automatically, making it easy to experiment with different forecasting approaches/parameters with minimal changes to code. The library is designed for flexibility and ease of use, allowing users to quickly implement sophisticated forecasting solutions while maintaining control over model parameters and preprocessing options.
 

@@ -4,7 +4,7 @@ nav:
     - 'Quick Start Examples':
         - 'Local (Single-Series)': example_single-series.md
         - 'Global (Multi-Series)': example_multi-series.md
-        - 'Using a Custom Regressor': example_custom-regressor.md
+        - 'Using a Custom Base Regressor': example_custom-regressor.md
     - 'Clustercast API':
         - 'DirectForecaster': DirectForecaster.md
         - 'RecursiveForecaster': RecursiveForecaster.md

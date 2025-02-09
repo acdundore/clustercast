@@ -140,7 +140,7 @@ fig, ax = plt.subplots(3, 1, figsize=(9, 9))
 ax = np.ravel(ax)
 for i in range(3):
     ts_known = data.loc[data['ID'] == i + 1]
-    ts_pred = direct_preds.loc[preds['ID'] == i + 1]
+    ts_pred = direct_preds.loc[direct_preds['ID'] == i + 1]
     sns.lineplot(data=ts_known, x='YM', y='Sales', ax=ax[i])
     sns.lineplot(data=ts_pred, x='YM', y='Forecast', ax=ax[i])
     ax[i].grid(axis='both')
@@ -178,22 +178,22 @@ model.fit(alpha=0.10)
 
 # make predictions
 recursive_preds = model.predict(steps=12)
-print(direct_preds)
+print(recursive_preds)
 ```
 
 ```profile
-     ID         YM   Region         Category     Forecast  Forecast_0.050  Forecast_0.950  
-0     1 2018-01-01  Central        Furniture  3600.877987     1304.404081    12546.381077
-1     2 2018-01-01  Central  Office Supplies  1854.132830      758.713625     7989.223754 
-2     3 2018-01-01  Central       Technology  3186.816992      373.205139    22228.241521  
-3     4 2018-01-01     East        Furniture  2012.114413     1355.272540     7146.558209  
-4     5 2018-01-01     East  Office Supplies  4260.039391     2117.299462    12542.677098  
-..   ..        ...      ...              ...          ...             ...             ... 
-139   8 2018-12-01    South  Office Supplies  5695.951009     1421.737462     6650.924945  
-140   9 2018-12-01    South       Technology  4235.936202     1164.827973    14433.810182  
-141  10 2018-12-01     West        Furniture  9147.575517     1095.153727    18736.839496  
-142  11 2018-12-01     West  Office Supplies  7922.622796     1330.612234    15289.648935  
-143  12 2018-12-01     West       Technology  7706.907351     1524.306079    17297.574709  
+     ID         YM   Region         Category      Forecast  Forecast_0.050  Forecast_0.950
+0     1 2018-01-01  Central        Furniture   3600.877987     1862.175399     4838.254450
+1     2 2018-01-01  Central  Office Supplies   1854.132830     -649.050239     5697.865943
+2     3 2018-01-01  Central       Technology   3186.816992     2061.010868     9590.516536
+3     4 2018-01-01     East        Furniture   2012.114413      723.192036     5767.364540
+4     5 2018-01-01     East  Office Supplies   4260.039391     2917.095818     7339.969946
+..   ..        ...      ...              ...           ...             ...             ...
+139   8 2018-12-01    South  Office Supplies   5016.456907     3374.328995     7347.292540
+140   9 2018-12-01    South       Technology   3063.623135     1610.564406    10554.580174
+141  10 2018-12-01     West        Furniture  10457.080657     8369.787902    13472.873271
+142  11 2018-12-01     West  Office Supplies   7680.674792     5196.092711    10294.148275
+143  12 2018-12-01     West       Technology   9337.751909     6856.493316    12027.970024
 
 [144 rows x 7 columns]
 ```
@@ -204,7 +204,7 @@ fig, ax = plt.subplots(3, 1, figsize=(9, 9))
 ax = np.ravel(ax)
 for i in range(3):
     ts_known = data.loc[data['ID'] == i + 1]
-    ts_pred = recursive_preds.loc[preds['ID'] == i + 1]
+    ts_pred = recursive_preds.loc[recursive_preds['ID'] == i + 1]
     sns.lineplot(data=ts_known, x='YM', y='Sales', ax=ax[i])
     sns.lineplot(data=ts_pred, x='YM', y='Forecast', ax=ax[i])
     ax[i].grid(axis='both')

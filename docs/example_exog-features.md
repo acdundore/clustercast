@@ -1,0 +1,240 @@
+# Modeling with Exogenous Features
+
+In this example, we will use a stores sales dataset to perform a global (multi-series) forecast.
+The dataset represents sales for different store region and product category combinations from a single store chain over time.
+There are 12 different time series, each with a different combo of region and category (e.g. East Region Furniture Sales or West Region Technology Sales).
+A global forecasting model trains on all time series simultaneously.
+Global models can draw parallels across all time series, whereas the single-series models are siloed to only one.
+For example, in this case, a global model will be able to understand shared trends between all different product categories in a single region.
+Similarly, it will also understand shared trends across all regions for a single product category.
+We will walk through data preparation, then show creation of both recursive and direct forecast models.
+
+---
+
+## Data Preparation
+
+We will start by joining some exogenous data onto the same sales dataset that was used in the Global Forecasting example.
+The exogenous dataset contains two new features, both macroeconomic indicators in the US: Unemployment Rate and Consumer Price Index (CPI).
+
+```python
+# join the exogenous data onto the store sales data
+data = pd.merge(left=sales_data, right=exog_data, how='left', on='YM')
+print(data)
+
+# keep only certain data for training
+data_train = data.loc[
+    data['YM'] < dt.datetime(year=2018, month=1, day=1)
+]
+```
+
+```profile
+     ID         YM   Region         Category      Sales  Unemployment Rate       CPI
+0     1 2015-01-01  Central        Furniture    506.358                5.7  1.947530
+1     2 2015-01-01  Central  Office Supplies    996.408                5.7  1.947530
+2     3 2015-01-01  Central       Technology     31.200                5.7  1.947530
+3     4 2015-01-01     East        Furniture    199.004                5.7  1.947530
+4     5 2015-01-01     East  Office Supplies    112.970                5.7  1.947530
+..   ..        ...      ...              ...        ...                ...       ...
+568   8 2018-12-01    South  Office Supplies   5108.690                3.9  2.911777
+569   9 2018-12-01    South       Technology   4515.764                3.9  2.911777
+570  10 2018-12-01     West        Furniture  12362.431                3.9  2.911777
+571  11 2018-12-01     West  Office Supplies   9225.140                3.9  2.911777
+572  12 2018-12-01     West       Technology   8064.524                3.9  2.911777
+
+[573 rows x 7 columns]
+```
+
+We will display only the first 3 time series (of the 12 total) for brevity.
+
+```python
+# display the first 3 time series
+fig, ax = plt.subplots(3, 1, figsize=(9, 9))
+ax = np.ravel(ax)
+for i in range(3):
+    ts_known = data.loc[data['ID'] == i + 1]
+    sns.lineplot(data=ts_known, x='YM', y='Sales', ax=ax[i])
+    ax[i].grid(axis='both')
+    ax[i].set_title(f'{ts_pred['Region'].iloc[0]}, {ts_pred['Category'].iloc[0]}')
+
+fig.tight_layout(pad=1)
+```
+
+![Store Sales Data](img/example_multi-series_data.png)
+
+---
+
+## Direct Forecaster
+
+Now, let's create a direct forecaster.
+We will use similar model parameters to those in the Global Forecasting example.
+This time, we will also include Unemployment Rate and CPI as exogenous features when we instantiate the model.
+For a direct forecaster, that is the only thing you need to do for modeling exogenous features!
+
+```python
+# create the forecasting model
+model = DirectForecaster(
+    data=data_train,
+    endog_var='Sales',
+    id_var='ID',
+    group_vars=['Region', 'Category'],
+    exog_vars=['Unemployment Rate', 'CPI'], # include exog features
+    timestep_var='YM',
+    lags=12,
+    seasonality_ordinal=[12],
+)
+
+# fit the model
+model.fit(max_steps=12, alpha=0.10, cqr_cal_size='auto')
+
+# make predictions
+direct_preds = model.predict(steps=12)
+print(direct_preds)
+```
+
+```profile
+     ID         YM   Region         Category     Forecast  Forecast_0.050  Forecast_0.950
+0     1 2018-01-01  Central        Furniture  3263.294564      732.286329    11748.444901
+1     2 2018-01-01  Central  Office Supplies  2794.477492      208.984567    12961.443208
+2     3 2018-01-01  Central       Technology  4380.098196      797.547269    21857.918680
+3     4 2018-01-01     East        Furniture  3729.807853     1296.053621     9192.842472
+4     5 2018-01-01     East  Office Supplies  4218.281820     2291.741176    11076.653250
+..   ..        ...      ...              ...          ...             ...             ...
+139   8 2018-12-01    South  Office Supplies  5887.928413     1277.627392     5035.407014
+140   9 2018-12-01    South       Technology  4424.659682      898.589906    10710.782462
+141  10 2018-12-01     West        Furniture  9069.307202     1818.777556    14607.406334
+142  11 2018-12-01     West  Office Supplies  8040.104658     1916.935088    15490.695424
+143  12 2018-12-01     West       Technology  7740.399938     1768.470532    18257.377666
+
+[144 rows x 7 columns]
+```
+
+```python
+# display the first 3 time series forecasts
+fig, ax = plt.subplots(3, 1, figsize=(9, 9))
+ax = np.ravel(ax)
+for i in range(3):
+    ts_known = data.loc[data['ID'] == i + 1]
+    ts_pred = direct_preds.loc[direct_preds['ID'] == i + 1]
+    sns.lineplot(data=ts_known, x='YM', y='Sales', ax=ax[i])
+    sns.lineplot(data=ts_pred, x='YM', y='Forecast', ax=ax[i])
+    ax[i].grid(axis='both')
+    ax[i].fill_between(x=ts_pred['YM'], y1=ts_pred.iloc[:, -2], y2=ts_pred.iloc[:, -1], alpha=0.2, color='orange')
+    ax[i].set_title(f'{ts_pred['Region'].iloc[0]}, {ts_pred['Category'].iloc[0]}')
+
+fig.tight_layout(pad=1)
+```
+
+![Direct Forecast](img/example_exog-features_direct.png)
+
+---
+
+## Recursive Forecaster
+
+For recursive forecasting models, you need to also pass future values of the exogenous variables to the prediction method.
+These future values may either be forecasted themselves or they may be known a-priori (e.g. what-if scenario modeling, or factors that are controlled by you).
+The reason that future values must be passed to the predict method is because recursive models only predict one step ahead, then feed
+those new predictions as inputs for the prediction for the next step ahead. 
+The recursive model only makes predictions for the endogenous variable (not the exogenous ones) so they must be passed to the predict method.
+
+We will start by preparing the exogenous dataframe that will be passed to the predict method. 
+This dataframe must have the following columns:
+
+- The timestep
+- The series ID
+- The exogenous variable values for the corresponding timestep and series ID
+
+Because the Unemployment Rate and CPI values are the same for a given timestep across all series, we can just repeat the exogenous data for each series ID.
+You could conceivably have different exogenous feature values at a given timestep for each series ID 
+(e.g. number of employees for a given region and product category), in which case the assembly of this dataframe would be slightly different.
+Note that the exogenous dataframe to be passed to the predict method has extra timesteps (back to 1983).
+The exogenous data passed to the predict method will be automatically joined by timestep and series ID, so providing extra data is completely fine.
+
+```python
+# create a list of dataframes, one for each ID
+exog_dfs = []
+for id in range(1, 13):
+    temp_exog_df = exog_data.copy()
+    temp_exog_df['ID'] = id
+    exog_dfs.append(temp_exog_df)
+
+# concatenate all dataframes
+exog_data_with_id = pd.concat(exog_dfs, axis=0).reset_index(drop=True)
+print(exog_data_with_id)
+```
+
+```profile
+             YM  Unemployment Rate       CPI  ID
+0    1983-01-01               10.4  5.014653   1
+1    1983-02-01               10.4  4.952545   1
+2    1983-03-01               10.3  3.612261   1
+3    1983-04-01               10.2  4.828054   1
+4    1983-05-01               10.1  3.767326   1
+...         ...                ...       ...  ..
+6043 2024-08-01                4.2  3.180397  12
+6044 2024-09-01                4.1  4.146461  12
+6045 2024-10-01                4.1  3.607369  12
+6046 2024-11-01                4.2  2.775361  12
+6047 2024-12-01                4.1  3.638120  12
+
+[6048 rows x 4 columns]
+```
+
+Now, let's create a recursive forecaster model.
+We will use the same parameters as we did with the direct forecaster.
+Notice that the future exogenous data is passed to the predict method, also.
+
+```python
+# create the forecasting model
+model = RecursiveForecaster(
+    data=data_train,
+    endog_var='Sales',
+    id_var='ID',
+    group_vars=['Region', 'Category'],
+    exog_vars=['Unemployment Rate', 'CPI'], # include exog features
+    timestep_var='YM',
+    lags=12,
+    seasonality_ordinal=[12],
+)
+
+# fit the model
+model.fit(alpha=0.10)
+
+# make predictions, and include the exogenous feature data
+recursive_preds = model.predict(steps=12, exog_data=exog_data_with_id)
+print(recursive_preds)
+```
+
+```profile
+     ID         YM   Region         Category      Forecast  Forecast_0.050  Forecast_0.950
+0     1 2018-01-01  Central        Furniture   3600.877987     1862.175399     4838.254450
+1     2 2018-01-01  Central  Office Supplies   1854.132830     -649.050239     5697.865943
+2     3 2018-01-01  Central       Technology   3186.816992     2061.010868     9590.516536
+3     4 2018-01-01     East        Furniture   2012.114413      723.192036     5767.364540
+4     5 2018-01-01     East  Office Supplies   4260.039391     2917.095818     7339.969946
+..   ..        ...      ...              ...           ...             ...             ...
+139   8 2018-12-01    South  Office Supplies   5016.456907     3374.328995     7347.292540
+140   9 2018-12-01    South       Technology   3063.623135     1610.564406    10554.580174
+141  10 2018-12-01     West        Furniture  10457.080657     8369.787902    13472.873271
+142  11 2018-12-01     West  Office Supplies   7680.674792     5196.092711    10294.148275
+143  12 2018-12-01     West       Technology   9337.751909     6856.493316    12027.970024
+
+[144 rows x 7 columns]
+```
+
+```python
+# display the first 3 time series forecasts
+fig, ax = plt.subplots(3, 1, figsize=(9, 9))
+ax = np.ravel(ax)
+for i in range(3):
+    ts_known = data.loc[data['ID'] == i + 1]
+    ts_pred = recursive_preds.loc[recursive_preds['ID'] == i + 1]
+    sns.lineplot(data=ts_known, x='YM', y='Sales', ax=ax[i])
+    sns.lineplot(data=ts_pred, x='YM', y='Forecast', ax=ax[i])
+    ax[i].grid(axis='both')
+    ax[i].fill_between(x=ts_pred['YM'], y1=ts_pred.iloc[:, -2], y2=ts_pred.iloc[:, -1], alpha=0.2, color='orange')
+    ax[i].set_title(f'{ts_pred['Region'].iloc[0]}, {ts_pred['Category'].iloc[0]}')
+
+fig.tight_layout(pad=1)
+```
+
+![Recursive Forecast](img/example_exog-features_recursive.png)

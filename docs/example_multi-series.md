@@ -15,7 +15,8 @@ We will walk through data preparation, then show creation of both recursive and 
 
 ```python
 # import store sales data
-data = pd.read_csv('store_sales_grouped.csv', parse_dates=['YM'])
+from clustercast.datasets import load_store_sales
+data = load_store_sales()
 print(data)
 
 # keep only certain data for training
@@ -25,18 +26,18 @@ data_train = data.loc[
 ```
 
 ```profile
-     ID         YM   Region         Category      Sales
-0     1 2015-01-01  Central        Furniture    506.358
-1     2 2015-01-01  Central  Office Supplies    996.408
-2     3 2015-01-01  Central       Technology     31.200
-3     4 2015-01-01     East        Furniture    199.004
-4     5 2015-01-01     East  Office Supplies    112.970
-..   ..        ...      ...              ...        ...
-568   8 2018-12-01    South  Office Supplies   5108.690
-569   9 2018-12-01    South       Technology   4515.764
-570  10 2018-12-01     West        Furniture  12362.431
-571  11 2018-12-01     West  Office Supplies   9225.140
-572  12 2018-12-01     West       Technology   8064.524
+     ID         YM   Region    Category     Sales
+0     1 2015-01-01  Central   Furniture   506.358
+1     1 2015-02-01  Central   Furniture   439.310
+2     1 2015-03-01  Central   Furniture  3639.290
+3     1 2015-04-01  Central   Furniture  1468.218
+4     1 2015-05-01  Central   Furniture  2304.382
+..   ..        ...      ...         ...       ...
+568  12 2018-08-01     West  Technology  6230.788
+569  12 2018-09-01     West  Technology  5045.440
+570  12 2018-10-01     West  Technology  4651.807
+571  12 2018-11-01     West  Technology  7584.580
+572  12 2018-12-01     West  Technology  8064.524
 
 [573 rows x 5 columns]
 ```
@@ -113,18 +114,18 @@ print(direct_preds)
 10  11     6.618927e-02             6.618927e-02
 11  12     1.278997e-07             1.278997e-07
 
-     ID         YM   Region         Category     Forecast  Forecast_0.050  Forecast_0.950 
-0     1 2018-01-01  Central        Furniture  3600.877987     1304.404081    12546.381077 
+     ID         YM   Region         Category     Forecast  Forecast_0.050  Forecast_0.950
+0     1 2018-01-01  Central        Furniture  3600.877987     1304.404081    12546.381077
 1     2 2018-01-01  Central  Office Supplies  1854.132830      758.713625     7989.223754
-2     3 2018-01-01  Central       Technology  3186.816992      373.205139    22228.241521 
-3     4 2018-01-01     East        Furniture  2012.114413     1355.272540     7146.558209  
-4     5 2018-01-01     East  Office Supplies  4260.039391     2117.299462    12542.677098 
-..   ..        ...      ...              ...          ...             ...             ...  
-139   8 2018-12-01    South  Office Supplies  5695.951009     1421.737462     6650.924945  
-140   9 2018-12-01    South       Technology  4235.936202     1164.827973    14433.810182 
-141  10 2018-12-01     West        Furniture  9147.575517     1095.153727    18736.839496 
-142  11 2018-12-01     West  Office Supplies  7922.622796     1330.612234    15289.648935 
-143  12 2018-12-01     West       Technology  7706.907351     1524.306079    17297.574709   
+2     3 2018-01-01  Central       Technology  3186.816992      373.205139    22228.241521
+3     4 2018-01-01     East        Furniture  2012.114413     1355.272540     7146.558209
+4     5 2018-01-01     East  Office Supplies  4260.039391     2117.299462    12542.677098
+..   ..        ...      ...              ...          ...             ...             ...
+139   8 2018-12-01    South  Office Supplies  5695.951009     1421.737462     6650.924945
+140   9 2018-12-01    South       Technology  4235.936202     1164.827973    14433.810182
+141  10 2018-12-01     West        Furniture  9147.575517     1095.153727    18736.839496
+142  11 2018-12-01     West  Office Supplies  7922.622796     1330.612234    15289.648935
+143  12 2018-12-01     West       Technology  7706.907351     1524.306079    17297.574709
 
 [144 rows x 7 columns]
 ```
@@ -183,17 +184,17 @@ print(recursive_preds)
 
 ```profile
      ID         YM   Region         Category      Forecast  Forecast_0.050  Forecast_0.950
-0     1 2018-01-01  Central        Furniture   3600.877987     1862.175399     4838.254450
+0     1 2018-01-01  Central        Furniture   3600.877987     1862.175399     4532.177408
 1     2 2018-01-01  Central  Office Supplies   1854.132830     -649.050239     5697.865943
-2     3 2018-01-01  Central       Technology   3186.816992     2061.010868     9590.516536
-3     4 2018-01-01     East        Furniture   2012.114413      723.192036     5767.364540
-4     5 2018-01-01     East  Office Supplies   4260.039391     2917.095818     7339.969946
+2     3 2018-01-01  Central       Technology   3186.816992     1846.423599    14436.654395
+3     4 2018-01-01     East        Furniture   2012.114413      253.129934     5767.364540
+4     5 2018-01-01     East  Office Supplies   4260.039391     2817.869584     7339.969946
 ..   ..        ...      ...              ...           ...             ...             ...
-139   8 2018-12-01    South  Office Supplies   5016.456907     3374.328995     7347.292540
-140   9 2018-12-01    South       Technology   3063.623135     1610.564406    10554.580174
-141  10 2018-12-01     West        Furniture  10457.080657     8369.787902    13472.873271
-142  11 2018-12-01     West  Office Supplies   7680.674792     5196.092711    10294.148275
-143  12 2018-12-01     West       Technology   9337.751909     6856.493316    12027.970024
+139   8 2018-12-01    South  Office Supplies   5016.456907     3244.679117     6785.770083
+140   9 2018-12-01    South       Technology   3063.623135     1636.479677    10877.299013
+141  10 2018-12-01     West        Furniture  10457.080657     8535.693350    13387.175556
+142  11 2018-12-01     West  Office Supplies   7680.674792     5173.239341    10100.742047
+143  12 2018-12-01     West       Technology   9337.751909     6797.900776    11783.540552
 
 [144 rows x 7 columns]
 ```

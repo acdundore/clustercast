@@ -10,6 +10,7 @@ nav:
     - 'Clustercast API':
         - 'DirectForecaster': DirectForecaster.md
         - 'RecursiveForecaster': RecursiveForecaster.md
+        - '.datasets': datasets.md
 theme: 
     name: readthedocs
     prev_next_buttons_location: None

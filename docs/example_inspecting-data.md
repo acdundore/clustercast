@@ -1,7 +1,7 @@
 # Inspecting Transformed Data
 
 In this example, we will use the same store sales dataset from other examples.
-Instead of making predictions, we will use some built-in properties of the forecasting models to inspect the transformed training data.
+Instead of making predictions, we will use some internal properties of the forecasting models to inspect the transformed training data.
 It is good practice to manually inspect the transformed dataset before inferencing to ensure it aligns with user expectations.
 Although this model uses the `DirectForecaster` class, the same process can be completed for `RecursiveForecaster`.
 
@@ -11,7 +11,8 @@ Although this model uses the `DirectForecaster` class, the same process can be c
 
 ```python
 # import store sales data
-data = pd.read_csv('store_sales_grouped.csv', parse_dates=['YM'])
+from clustercast.datasets import load_store_sales
+data = load_store_sales()
 print(data)
 
 # keep only certain data for training
@@ -43,7 +44,7 @@ data_train = data.loc[
 
 First, we can create the direct forecaster model.
 We will use the following parameters.
-Although these are likely not optimal, they will be useful for explaining how the feature transformations work.
+Although these are likely not optimal, they will be useful for demonstrating the feature transformations.
 
 - A Box-Cox transform parameter of 0.5
 - Differencing

@@ -17,6 +17,10 @@ We will start by joining some exogenous data onto the same sales dataset that wa
 The exogenous dataset contains two new features, both macroeconomic indicators in the US: Unemployment Rate and Consumer Price Index (CPI).
 
 ```python
+# import store sales data
+from clustercast.datasets import load_store_sales
+sales_data = load_store_sales()
+
 # join the exogenous data onto the store sales data
 data = pd.merge(left=sales_data, right=exog_data, how='left', on='YM')
 print(data)
@@ -28,18 +32,18 @@ data_train = data.loc[
 ```
 
 ```profile
-     ID         YM   Region         Category      Sales  Unemployment Rate       CPI
-0     1 2015-01-01  Central        Furniture    506.358                5.7  1.947530
-1     2 2015-01-01  Central  Office Supplies    996.408                5.7  1.947530
-2     3 2015-01-01  Central       Technology     31.200                5.7  1.947530
-3     4 2015-01-01     East        Furniture    199.004                5.7  1.947530
-4     5 2015-01-01     East  Office Supplies    112.970                5.7  1.947530
-..   ..        ...      ...              ...        ...                ...       ...
-568   8 2018-12-01    South  Office Supplies   5108.690                3.9  2.911777
-569   9 2018-12-01    South       Technology   4515.764                3.9  2.911777
-570  10 2018-12-01     West        Furniture  12362.431                3.9  2.911777
-571  11 2018-12-01     West  Office Supplies   9225.140                3.9  2.911777
-572  12 2018-12-01     West       Technology   8064.524                3.9  2.911777
+     ID         YM   Region    Category     Sales  Unemployment Rate       CPI
+0     1 2015-01-01  Central   Furniture   506.358                5.7  1.947530
+1     1 2015-02-01  Central   Furniture   439.310                5.5  1.954495
+2     1 2015-03-01  Central   Furniture  3639.290                5.4  2.433336
+3     1 2015-04-01  Central   Furniture  1468.218                5.4  2.962651
+4     1 2015-05-01  Central   Furniture  2304.382                5.6  2.501291
+..   ..        ...      ...         ...       ...                ...       ...
+568  12 2018-08-01     West  Technology  6230.788                3.8  2.296711
+569  12 2018-09-01     West  Technology  5045.440                3.7  2.333723
+570  12 2018-10-01     West  Technology  4651.807                3.8  2.606263
+571  12 2018-11-01     West  Technology  7584.580                3.8  3.723764
+572  12 2018-12-01     West  Technology  8064.524                3.9  2.911777
 
 [573 rows x 7 columns]
 ```
@@ -154,15 +158,15 @@ print(future_exog)
 ```profile
      ID         YM  Unemployment Rate       CPI
 0     1 2015-01-01                5.7  1.947530
-1     2 2015-01-01                5.7  1.947530
-2     3 2015-01-01                5.7  1.947530
-3     4 2015-01-01                5.7  1.947530
-4     5 2015-01-01                5.7  1.947530
+1     1 2015-02-01                5.5  1.954495
+2     1 2015-03-01                5.4  2.433336
+3     1 2015-04-01                5.4  2.962651
+4     1 2015-05-01                5.6  2.501291
 ..   ..        ...                ...       ...
-568   8 2018-12-01                3.9  2.911777
-569   9 2018-12-01                3.9  2.911777
-570  10 2018-12-01                3.9  2.911777
-571  11 2018-12-01                3.9  2.911777
+568  12 2018-08-01                3.8  2.296711
+569  12 2018-09-01                3.7  2.333723
+570  12 2018-10-01                3.8  2.606263
+571  12 2018-11-01                3.8  3.723764
 572  12 2018-12-01                3.9  2.911777
 
 [573 rows x 4 columns]
@@ -195,17 +199,17 @@ print(recursive_preds)
 
 ```profile
      ID         YM   Region         Category     Forecast  Forecast_0.050  Forecast_0.950
-0     1 2018-01-01  Central        Furniture  3263.294564     1779.689714     4908.194980
+0     1 2018-01-01  Central        Furniture  3263.294564     2003.807769     4761.098893
 1     2 2018-01-01  Central  Office Supplies  2794.477492     1313.254393     6970.375753
-2     3 2018-01-01  Central       Technology  4380.098196     3260.778271    14669.811855
+2     3 2018-01-01  Central       Technology  4380.098196     3115.703771     9829.714225
 3     4 2018-01-01     East        Furniture  3729.807853     2191.461063     9860.048448
-4     5 2018-01-01     East  Office Supplies  4218.281820     2928.411646     6790.490721
+4     5 2018-01-01     East  Office Supplies  4218.281820     2928.411646     7529.262034
 ..   ..        ...      ...              ...          ...             ...             ...
-139   8 2018-12-01    South  Office Supplies  5018.833178     3988.594937     7203.783553
-140   9 2018-12-01    South       Technology  3888.920668     2810.779046     5496.608605
-141  10 2018-12-01     West        Furniture  7410.047095     6460.794269    10364.639827
-142  11 2018-12-01     West  Office Supplies  7315.177064     5624.461468     9089.341806
-143  12 2018-12-01     West       Technology  7628.612253     6590.594292    11078.375500
+139   8 2018-12-01    South  Office Supplies  5018.833178     3994.733445     9392.034780
+140   9 2018-12-01    South       Technology  3888.920668     2769.218325    12022.306172
+141  10 2018-12-01     West        Furniture  7410.047095     6238.034085    10714.565368
+142  11 2018-12-01     West  Office Supplies  7315.177064     5588.471151     8328.289858
+143  12 2018-12-01     West       Technology  7628.612253     6616.717556    10676.775578
 
 [144 rows x 7 columns]
 ```

@@ -17,19 +17,19 @@ Once the model class has been instantiated, the parameters may not be changed.
 | data : `pd.DataFrame` | The input data containing the time series, IDs, timesteps, and any <br>grouping or exogenous variables. |
 | endog_var : `str` | The name of the target variable to forecast. |
 | id_var : `str` | The name of the column containing unique identifiers for each time <br>series. |
-| timestep_var : `str` | The name of the column containing the time steps. |
+| timestep_var : `str` | The name of the column containing the time steps. The timestep <br>values may either be datetimes, integers, or floats. |
 | group_vars : `list` | List of column names containing categorical variables used to group <br>the time series. |
 | exog_vars  : `list` | List of column names containing exogenous variables to use as <br>predictors. |
 | boxcox : `float` or `int` | The Box-Cox transformation parameter. Use `1` for no transformation. <br>A value of `0` will perform a log transformation. |
 | differencing : `bool` | Whether to apply first-order differencing to the target variable. |
 | include_level : `bool` | Whether to include the level of the target variable as a feature. <br>When `True`, this is only included when differencing is applied. |
-| include_timestep : `bool` | Whether to include the time step as a feature. If `True`, an integer index <br>starting at zero is mapped to each unique timestep chronologically and <br>passed to the regressor. Use with caution, as this may make your model <br>prone to overfitting. |
+| include_timestep : `bool` | Whether to include the time step as a feature. If `True`, an integer <br>index starting at zero is mapped to each unique timestep <br>chronologically and passed to the regressor. Use with caution, as <br>this may make your model prone to overfitting. |
 | lags : `int` or `list` | The number of lags, or a list of specific lag values, to use as features. |
 | sample_weight_halflife : `int` | The halflife, in number of timesteps, used to calculate sample weights <br>during the model fit (more recent timesteps have a heavier weight). If <br>`None`, all samples are weighted equally. |
 | seasonality_fourier : `dict` | Dictionary with periods as the keys and number of Fourier terms as <br>values. |
 | seasonality_onehot : `list` | List of periods for one-hot encoded seasonality features. |
 | seasonality_ordinal : `list` | List of periods for ordinal encoded seasonality features. |
-| lgbm_kwargs : `dict` | Additional keyword arguments to pass to LGBMRegressor, if no custom <br>base regressor is used. |
+| lgbm_kwargs : `dict` | Additional keyword arguments to pass to LGBMRegressor, if no <br>custom base regressor is used. |
 | base_regressor : `class` | Alternative regressor class to use instead of LGBMRegressor. You can <br>create an custom wrapper for any statistical or machine learning <br>regressor if certain criteria are met. See the examples page for more <br>information. |
 
 ---

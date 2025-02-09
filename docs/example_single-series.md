@@ -9,9 +9,9 @@ We will walk through data preparation, then show creation of both recursive and 
 
 ```python
 # import airline passenger data 
-airline_data = pd.read_csv('airline_passengers.csv', parse_dates=['Month'])
-airline_data.columns = ['YM', 'Passengers']
-airline_data['ID'] = 1 # only a single series, so all rows have the same ID
+from clustercast.datasets import load_airline_passengers
+airline_data = load_airline_passengers()
+airline_data['ID'] = 1
 print(airline_data)
 
 # only keep data before 1959 for training

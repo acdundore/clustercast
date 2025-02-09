@@ -143,40 +143,29 @@ This dataframe must have the following columns:
 - The series ID
 - The exogenous variable values for the corresponding timestep and series ID
 
-Because the Unemployment Rate and CPI values are the same for a given timestep across all series, we can just repeat the exogenous data for each series ID.
-You could conceivably have different exogenous feature values at a given timestep for each series ID 
-(e.g. number of employees for a given region and product category), in which case the assembly of this dataframe would be slightly different.
-Note that the exogenous dataframe to be passed to the predict method has extra timesteps (back to 1983).
-The exogenous data passed to the predict method will be automatically joined by timestep and series ID, so providing extra data is completely fine.
+Because we joined the Unemployment Rate and CPI data to the original store sales dataset, we can just isolate the relevant columns from that dataframe.
 
 ```python
-# create a list of dataframes, one for each ID
-exog_dfs = []
-for id in range(1, 13):
-    temp_exog_df = exog_data.copy()
-    temp_exog_df['ID'] = id
-    exog_dfs.append(temp_exog_df)
-
-# concatenate all dataframes
-exog_data_with_id = pd.concat(exog_dfs, axis=0).reset_index(drop=True)
-print(exog_data_with_id)
+# get the exogenous feature values out to the end of the forecast horizon
+future_exog = data[['ID', 'YM', 'Unemployment Rate', 'CPI']].copy()
+print(future_exog)
 ```
 
 ```profile
-             YM  Unemployment Rate       CPI  ID
-0    1983-01-01               10.4  5.014653   1
-1    1983-02-01               10.4  4.952545   1
-2    1983-03-01               10.3  3.612261   1
-3    1983-04-01               10.2  4.828054   1
-4    1983-05-01               10.1  3.767326   1
-...         ...                ...       ...  ..
-6043 2024-08-01                4.2  3.180397  12
-6044 2024-09-01                4.1  4.146461  12
-6045 2024-10-01                4.1  3.607369  12
-6046 2024-11-01                4.2  2.775361  12
-6047 2024-12-01                4.1  3.638120  12
+     ID         YM  Unemployment Rate       CPI
+0     1 2015-01-01                5.7  1.947530
+1     2 2015-01-01                5.7  1.947530
+2     3 2015-01-01                5.7  1.947530
+3     4 2015-01-01                5.7  1.947530
+4     5 2015-01-01                5.7  1.947530
+..   ..        ...                ...       ...
+568   8 2018-12-01                3.9  2.911777
+569   9 2018-12-01                3.9  2.911777
+570  10 2018-12-01                3.9  2.911777
+571  11 2018-12-01                3.9  2.911777
+572  12 2018-12-01                3.9  2.911777
 
-[6048 rows x 4 columns]
+[573 rows x 4 columns]
 ```
 
 Now, let's create a recursive forecaster model.
@@ -200,23 +189,23 @@ model = RecursiveForecaster(
 model.fit(alpha=0.10)
 
 # make predictions, and include the exogenous feature data
-recursive_preds = model.predict(steps=12, exog_data=exog_data_with_id)
+recursive_preds = model.predict(steps=12, exog_data=future_exog)
 print(recursive_preds)
 ```
 
 ```profile
-     ID         YM   Region         Category      Forecast  Forecast_0.050  Forecast_0.950
-0     1 2018-01-01  Central        Furniture   3600.877987     1862.175399     4838.254450
-1     2 2018-01-01  Central  Office Supplies   1854.132830     -649.050239     5697.865943
-2     3 2018-01-01  Central       Technology   3186.816992     2061.010868     9590.516536
-3     4 2018-01-01     East        Furniture   2012.114413      723.192036     5767.364540
-4     5 2018-01-01     East  Office Supplies   4260.039391     2917.095818     7339.969946
-..   ..        ...      ...              ...           ...             ...             ...
-139   8 2018-12-01    South  Office Supplies   5016.456907     3374.328995     7347.292540
-140   9 2018-12-01    South       Technology   3063.623135     1610.564406    10554.580174
-141  10 2018-12-01     West        Furniture  10457.080657     8369.787902    13472.873271
-142  11 2018-12-01     West  Office Supplies   7680.674792     5196.092711    10294.148275
-143  12 2018-12-01     West       Technology   9337.751909     6856.493316    12027.970024
+     ID         YM   Region         Category     Forecast  Forecast_0.050  Forecast_0.950
+0     1 2018-01-01  Central        Furniture  3263.294564     1779.689714     4908.194980
+1     2 2018-01-01  Central  Office Supplies  2794.477492     1313.254393     6970.375753
+2     3 2018-01-01  Central       Technology  4380.098196     3260.778271    14669.811855
+3     4 2018-01-01     East        Furniture  3729.807853     2191.461063     9860.048448
+4     5 2018-01-01     East  Office Supplies  4218.281820     2928.411646     6790.490721
+..   ..        ...      ...              ...          ...             ...             ...
+139   8 2018-12-01    South  Office Supplies  5018.833178     3988.594937     7203.783553
+140   9 2018-12-01    South       Technology  3888.920668     2810.779046     5496.608605
+141  10 2018-12-01     West        Furniture  7410.047095     6460.794269    10364.639827
+142  11 2018-12-01     West  Office Supplies  7315.177064     5624.461468     9089.341806
+143  12 2018-12-01     West       Technology  7628.612253     6590.594292    11078.375500
 
 [144 rows x 7 columns]
 ```

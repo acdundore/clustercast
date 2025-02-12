@@ -1,4 +1,4 @@
-# clustercast.datasets
+# Datasets
 
 `clustercast` includes two example datasets that can be imported and used to experiment with the forecasting classes.
 
@@ -8,7 +8,7 @@
 
 > *function* clustercast.datasets.**load_airline_passengers**()
 
-This function returns the well-known airline passengers dataset as pandas dataframe.
+This function returns the well-known airline passengers dataset as a pandas dataframe.
 The airline passengers dataset records monthly airline passengers over a period of many years.
 This dataset is great for learning about time series forecasting because it is non-stationary and exhibits strong seasonality.
 
@@ -45,7 +45,7 @@ print(data)
 
 > *function* clustercast.datasets.**load_store_sales**()
 
-This function returns a superstore sales dataset as pandas dataframe.
+This function returns a superstore sales dataset as a pandas dataframe.
 This dataset is a modified version of an open dataset found on Kaggle, linked in the references below.
 The store sales dataset is a good example for global forecasting of grouped time series, as there are 12
 closely related time series that have shared and overlapping attributes (store region and product category).

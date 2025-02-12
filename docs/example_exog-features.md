@@ -17,8 +17,11 @@ We will start by joining some exogenous data onto the same sales dataset that wa
 The exogenous dataset contains two new features, both macroeconomic indicators in the US: Unemployment Rate and Consumer Price Index (CPI).
 
 ```python
-# import store sales data
+# imports
 from clustercast.datasets import load_store_sales
+from clustercast import DirectForecaster, RecursiveForecaster
+
+# load store sales data
 sales_data = load_store_sales()
 
 # join the exogenous data onto the store sales data

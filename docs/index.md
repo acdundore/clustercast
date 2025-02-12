@@ -1,8 +1,8 @@
-![Clustercast Logo](img/clustercast_logo_labeled.png)
+![Clustercast Logo](img/clustercast_logo_with_words.png)
 
 # Overview
 
-`clustercast` is a Python library for ML-based time series forecasting that supports both single-series (local) forecasting and multi-series (global) forecasting for grouped/hierarchical time series. The "cluster" in the name comes from the fact that grouped time series with shared traits can be effectively modeled. It provides two main forecasting approaches:
+`clustercast` is a Python library for ML-based time series forecasting that supports both single-series (local) forecasting and multi-series (global) forecasting for grouped/hierarchical time series. The "cluster" in the name comes from the technique of modeling grouped (clustered) time series with shared traits concurrently. It provides two main forecasting approaches:
 
 - **Direct Forecasting**: Trains separate models for each forecast step, using direct multi-step forecasting
 - **Recursive Forecasting**: Trains a single model and uses its one-step-ahead predictions recursively for multi-step forecasting
@@ -40,7 +40,12 @@ An example using the recursive forecasting class is shown below.
 In this example, there are 12 distinct time series representing sales over time for different regions and product categories.
 
 ```python
-# show the training data
+# imports
+from clustercast.datasets import load_store_sales
+from clustercast import RecursiveForecaster
+
+# load store sales data
+data = load_store_sales()
 print(data)
 ```
 
@@ -62,9 +67,6 @@ print(data)
 ```
 
 ```python
-# import the model class
-from clustercast import RecursiveForecaster
-
 # create the forecasting model
 model = RecursiveForecaster(
     data=data, # provide the full dataset

@@ -14,8 +14,11 @@ We will walk through data preparation, then show creation of both recursive and 
 ## Data Preparation
 
 ```python
-# import store sales data
+# imports
 from clustercast.datasets import load_store_sales
+from clustercast import DirectForecaster, RecursiveForecaster
+
+# load store sales data
 data = load_store_sales()
 print(data)
 

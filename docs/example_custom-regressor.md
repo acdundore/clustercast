@@ -10,8 +10,11 @@ This could include neural networks (pytorch or tensorflow), linear regression, o
 ## Data Preparation
 
 ```python
-# import airline passenger data 
+# imports
 from clustercast.datasets import load_airline_passengers
+from clustercast import DirectForecaster, RecursiveForecaster
+
+# load airline passenger data 
 airline_data = load_airline_passengers()
 airline_data['ID'] = 1
 print(airline_data)

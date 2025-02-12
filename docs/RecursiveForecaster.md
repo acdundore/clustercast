@@ -81,7 +81,12 @@ The ADF test has a null hypothesis of non-stationarity, while KPSS has a null hy
 ### Example
 
 ```python
-# show the training data
+# imports
+from clustercast.datasets import load_store_sales
+from clustercast import RecursiveForecaster
+
+# load store sales data
+data = load_store_sales()
 print(data)
 ```
 
@@ -125,9 +130,6 @@ print(future_exog)
 ```
 
 ```python
-# import the model class
-from clustercast import RecursiveForecaster
-
 # create the forecasting model
 model = RecursiveForecaster(
     data=data, # provide the full dataset

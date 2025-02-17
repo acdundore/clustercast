@@ -12,46 +12,25 @@ import warnings
 
 class _GroupForecaster():
     def __init__(self, data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, sample_weight_halflife=None, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None):
-        # checking types of the arguments
-        if not isinstance(data, pd.DataFrame):
-            raise TypeError('The data must be a pandas DataFrame.')
-        if not isinstance(group_vars, list):
-            raise TypeError('A list must be passed for the group_vars argument.')
-        if not isinstance(exog_vars, list):
-            raise TypeError('A list must be passed for the exog_vars argument.')
-        if not isinstance(boxcox, (float, int)):
-            raise TypeError('The boxcox argument must be a scalar numerical value.')
-        if not isinstance(differencing, bool):
-            raise TypeError('The differencing argument must be a boolean.')
-        if not isinstance(include_level, bool):
-            raise TypeError('The include_level argument must be a boolean.')
-        if not isinstance(include_timestep, bool):
-            raise TypeError('The include_timestep argument must be a boolean.')
-        if not isinstance(lags, int) and not isinstance(lags, list):
-            raise TypeError('Either an integer or list of integers must be passed to the lags argument.')
-        if isinstance(lags, list) and not all([isinstance(x, int) for x in lags]):
-            raise TypeError('If a list is passed to the lags argument, it must only contain integers.')
-        if not isinstance(seasonality_fourier, dict):
-            raise TypeError('The seasonality_fourier argument must be a dictionary.')
-        if seasonality_fourier and not all(isinstance(k, int) and isinstance(v, int) for k, v in seasonality_fourier.items()):
-            raise TypeError('The seasonality_fourier dictionary must contain integer key:value pairs.')
-        if not isinstance(seasonality_onehot, list):
-            raise TypeError('The seasonality_onehot argument must be a list.')
-        if seasonality_onehot and not all(isinstance(x, int) for x in seasonality_onehot):
-            raise TypeError('The seasonality_onehot list must contain integers.')
-        if not isinstance(seasonality_ordinal, list):
-            raise TypeError('The seasonality_ordinal argument must be a list.')
-        if seasonality_ordinal and not all(isinstance(x, int) for x in seasonality_ordinal):
-            raise TypeError('The seasonality_ordinal list must contain integers.')
-        if not isinstance(lgbm_kwargs, dict):
-            raise TypeError('The lgbm_kwargs argument must be a dictionary.')
-        if base_regressor is not None and not isinstance(base_regressor, type):
-            raise TypeError('The base_regressor must be None or a class object.')
-        if sample_weight_halflife is not None and not isinstance(sample_weight_halflife, (int, float)):
-            raise TypeError('The sample_weight_halflife argument must be either None or a positive number.')
-        if sample_weight_halflife is not None and sample_weight_halflife <= 0:
-            raise ValueError('The sample_weight_halflife argument must be positive.')
+        # validate input types
+        self._validate_inputs(
+            data=data,
+            group_vars=group_vars,
+            exog_vars=exog_vars,
+            boxcox=boxcox,
+            differencing=differencing,
+            include_level=include_level,
+            include_timestep=include_timestep,
+            lags=lags,
+            seasonality_fourier=seasonality_fourier,
+            seasonality_onehot=seasonality_onehot,
+            seasonality_ordinal=seasonality_ordinal,
+            lgbm_kwargs=lgbm_kwargs,
+            base_regressor=base_regressor,
+            sample_weight_halflife=sample_weight_halflife
+        )
         
+        # setting the class attributes
         self.data = data 
         self._data_trans = None
         self.endog_var = endog_var 
@@ -83,6 +62,73 @@ class _GroupForecaster():
         # check to make sure that there are not duplicate entries at any timestep for each series
         if len(self.data) != len(self.data.drop_duplicates(subset=[self.id_var, self.timestep_var])):
             raise ValueError('At least one timestep has multiple values within particular series.')
+        
+    # method to validate all input types and values
+    @staticmethod
+    def _validate_inputs(**kwargs):
+        # type validations
+        if not isinstance(kwargs['data'], pd.DataFrame):
+            raise TypeError('data must be a pandas DataFrame.')
+            
+        if not isinstance(kwargs['group_vars'], list):
+            raise TypeError('group_vars must be a list.')
+            
+        if not isinstance(kwargs['exog_vars'], list):
+            raise TypeError('exog_vars must be a list.')
+            
+        if not isinstance(kwargs['boxcox'], (float, int)):
+            raise TypeError('boxcox must be a scalar numerical value.')
+            
+        if not isinstance(kwargs['differencing'], bool):
+            raise TypeError('differencing must be a boolean.')
+            
+        if not isinstance(kwargs['include_level'], bool):
+            raise TypeError('include_level must be a boolean.')
+            
+        if not isinstance(kwargs['include_timestep'], bool):
+            raise TypeError('include_timestep must be a boolean.')
+            
+        # validate lags
+        if not isinstance(kwargs['lags'], (int, list)):
+            raise TypeError('lags must be an integer or list of integers.')
+        if isinstance(kwargs['lags'], list) and not all(isinstance(x, int) for x in kwargs['lags']):
+            raise TypeError('All lags must be integers.')
+        if isinstance(kwargs['lags'], int) and kwargs['lags'] <= 0:
+            raise ValueError('lags must be positive.')
+        if isinstance(kwargs['lags'], list) and any(lag <= 0 for lag in kwargs['lags']):
+            raise ValueError('All lags must be positive.')
+            
+        # validate seasonality parameters
+        if not isinstance(kwargs['seasonality_fourier'], dict):
+            raise TypeError('seasonality_fourier must be a dictionary.')
+        if kwargs['seasonality_fourier'] and not all(
+            isinstance(k, int) and isinstance(v, int) 
+            for k, v in kwargs['seasonality_fourier'].items()
+        ):
+            raise TypeError('seasonality_fourier must contain integer key:value pairs.')
+            
+        if not isinstance(kwargs['seasonality_onehot'], list):
+            raise TypeError('seasonality_onehot must be a list.')
+        if kwargs['seasonality_onehot'] and not all(isinstance(x, int) for x in kwargs['seasonality_onehot']):
+            raise TypeError('seasonality_onehot must contain integers.')
+            
+        if not isinstance(kwargs['seasonality_ordinal'], list):
+            raise TypeError('seasonality_ordinal must be a list.')
+        if kwargs['seasonality_ordinal'] and not all(isinstance(x, int) for x in kwargs['seasonality_ordinal']):
+            raise TypeError('seasonality_ordinal must contain integers.')
+            
+        # validate remaining parameters
+        if not isinstance(kwargs['lgbm_kwargs'], dict):
+            raise TypeError('lgbm_kwargs must be a dictionary.')
+            
+        if kwargs['base_regressor'] is not None and not isinstance(kwargs['base_regressor'], type):
+            raise TypeError('base_regressor must be None or a class object.')
+            
+        if (kwargs['sample_weight_halflife'] is not None and 
+            not isinstance(kwargs['sample_weight_halflife'], (int, float))):
+            raise TypeError('sample_weight_halflife must be None or a positive number.')
+        if kwargs['sample_weight_halflife'] is not None and kwargs['sample_weight_halflife'] <= 0:
+            raise ValueError('sample_weight_halflife must be positive.')
 
 
     def _infer_timestep(self):

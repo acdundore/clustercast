@@ -1,0 +1,19 @@
+site_name: Clustercast
+nav:
+    - 'Home': index.md
+    - 'Quick Start Examples':
+        - 'Local (Single-Series) Forecasting': example_single-series.md
+        - 'Global (Multi-Series) Forecasting': example_multi-series.md
+        - 'Using a Custom Base Regressor': example_custom-regressor.md
+        - 'Modeling with Exogenous Features': example_exog-features.md
+        - 'Inspecting Transformed Data': example_inspecting-data.md
+    - 'Clustercast API':
+        - 'DirectForecaster': DirectForecaster.md
+        - 'RecursiveForecaster': RecursiveForecaster.md
+        - '.datasets': datasets.md
+theme: 
+    name: readthedocs
+    prev_next_buttons_location: None
+    navigation_depth: 3
+    collapse_navigation: True
+    titles_only: True

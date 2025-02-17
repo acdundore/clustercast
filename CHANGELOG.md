@@ -1,5 +1,5 @@
 # Release Notes
 
-## v0.1.0 (TBD)
+## v0.1.0
 
-- Original Release
+- Original release for alpha testing.

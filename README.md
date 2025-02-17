@@ -1,4 +1,4 @@
-![Clustercast Logo](img/clustercast_logo_with_words.png)
+![Clustercast Logo](docs/img/clustercast_logo_with_words.png)
 
 # Overview
 

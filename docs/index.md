@@ -7,19 +7,19 @@
 - **Direct Forecasting**: Trains separate models for each forecast step, using direct multi-step forecasting
 - **Recursive Forecasting**: Trains a single model and uses its one-step-ahead predictions recursively for multi-step forecasting
 
-Key features include:
+Key features that differentiate `clustercast` from other libraries include:
 
-- Support for grouped time series that share common categories
+- Support for grouped time series that share common categories using a global architecture
 - Ability to perform stationarity tests for all time series simultaneously (ADF and KPSS)
 - Differencing and Box-Cox transformations
-- Calculation of lag features
+- Automatic calculation of lag features
 - Several types of seasonality features (Fourier, one-hot, and ordinal), which all support multiple seasonalities
 - Sample weighting to emphasize recent observations
-- Prediction intervals via Conformal Quantile Regression (with direct) or bootstrapped residuals (with recursive)
-- Model agnostic architecture supporting any custom ML model, with `LightGBM` as the default
+- Prediction intervals via Conformal Quantile Regression (with direct forecaster) or bootstrapped residuals (with recursive forecaster)
+- Model-agnostic architecture supporting any custom ML model, with `LightGBM` as the default
 - Ability to tune the hyperparameters of the built-in `LightGBM` model
 - Handling of exogenous variables
-- Supports missing data (for both individual features and entire timesteps)
+- Support of missing data (for both individual features and entire timesteps)
 
 Both forecasters share a similar API and handle data preprocessing automatically, making it easy to experiment with different forecasting approaches/parameters with minimal changes to code. The library is designed for flexibility and ease of use, allowing users to quickly implement sophisticated forecasting solutions while maintaining control over model parameters and preprocessing options.
 

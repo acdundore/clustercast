@@ -8,7 +8,7 @@
 
 > *function* clustercast.datasets.**load_airline_passengers**()
 
-This function returns the well-known airline passengers dataset as a pandas dataframe.
+This function returns the well-known airline passengers dataset as a pandas dataframe.<sup>[1]</sup>
 The airline passengers dataset records monthly airline passengers over a period of many years.
 This dataset is great for learning about time series forecasting because it is non-stationary and exhibits strong seasonality.
 
@@ -45,10 +45,10 @@ print(data)
 
 > *function* clustercast.datasets.**load_store_sales**()
 
-This function returns a superstore sales dataset as a pandas dataframe.
+This function returns a superstore sales dataset as a pandas dataframe.<sup>[2]</sup>
 This dataset is a modified version of an open dataset found on Kaggle, linked in the references below.
 The store sales dataset is a good example for global forecasting of grouped time series, as there are 12
-closely related time series that have shared and overlapping attributes (store region and product category).
+closely related time series that have shared and overlapping attributes (store region and product category).<sup>[3]</sup>
 
 ### Example
 
@@ -81,8 +81,8 @@ print(data)
 
 ### References
 
-[Airline Passengers Dataset (Kaggle)](https://www.kaggle.com/datasets/erogluegemen/airline-passengers)
+[[1] “Airline Passengers.” Kaggle. Accessed 2025.](https://www.kaggle.com/datasets/erogluegemen/airline-passengers)
 
-[Superstore Sales Dataset (Kaggle)](https://www.kaggle.com/datasets/rohitsahoo/sales-forecasting?select=train.csv)
+[[2] “Superstore Sales Dataset.” Kaggle. Accessed 2025.](https://www.kaggle.com/datasets/rohitsahoo/sales-forecasting?select=train.csv)
 
-[Grouped Time Series: Hyndman, "Forecasting: Principles and Practice"](https://otexts.com/fpp3/hts.html#grouped-time-series)
+[[3] Hyndman, Rob J., and George Athanasopoulos. “Hierarchical and Grouped Time Series.” Forecasting: Principles and Practice, Otexts, 2021.](https://otexts.com/fpp3/hts.html#grouped-time-series)

@@ -1,6 +1,6 @@
 # Recursive Forecaster
 
-The `RecursiveForecaster` class implements recursive multi-step forecasting, supporting both single-series (local) forecasting and multi-series (global) forecasting for grouped or hierarchical time series. It trains a single model and uses the model's predictions as inputs for subsequent predictions, iterating through the forecast horizon. The class handles a variety of time series preprocessing techniques natively, including differencing, Box-Cox transformations, seasonality features, and lag calculations. The `RecursiveForecaster` provides both point forecasts and prediction intervals, with optional Conformal Quantile Regression (CQR) for state-of-the-art interval coverage. This flexible forecaster is well-suited for time series with complex patterns and multiple relevant predictors.
+The `RecursiveForecaster` class implements recursive multi-step forecasting, supporting both single-series (local) forecasting and multi-series (global) forecasting for grouped or hierarchical time series.<sup>[1]</sup> It trains a single model and uses the model's predictions as inputs for subsequent predictions, iterating through the forecast horizon. The class handles a variety of time series preprocessing techniques natively, including differencing, Box-Cox transformations, seasonality features, and lag calculations. The `RecursiveForecaster` provides both point forecasts and prediction intervals by performing a number of prediction runs with bootstrapped residuals for each series. This flexible forecaster is well-suited for time series with complex patterns and multiple relevant predictors.
 
 ---
 
@@ -143,7 +143,7 @@ model = RecursiveForecaster(
     include_level=False, # do not include a level feature
     include_timestep=False, # do not include timestep as a feature
     lags=12, # include lags 1 through 12
-    sample_weight_halflife=12, # decay the sample weights over the period of a month
+    sample_weight_halflife=12, # decay the sample weights
     seasonality_ordinal=[12], # include an ordinal seasonality feature
     lgbm_kwargs={'n_estimators': 300, 'learning_rate': 0.03, 'max_depth': 30, 'reg_lambda': 0.03, 'verbose':-1},
 )
@@ -178,4 +178,4 @@ print(forecast)
 
 ### References
 
-[Grouped Time Series: Hyndman, "Forecasting: Principles and Practice"](https://otexts.com/fpp3/hts.html#grouped-time-series)
+[[1] Hyndman, Rob J., and George Athanasopoulos. “Hierarchical and Grouped Time Series.” Forecasting: Principles and Practice, Otexts, 2021.](https://otexts.com/fpp3/hts.html#grouped-time-series)

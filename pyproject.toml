@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "clustercast"
-version = "0.1.0"
+version = "0.1.1"
 description = "A model-agnostic global forecasting framework for grouped time series analysis."
 license = "MIT"
 authors = ["Alex Dundore <acdundore.5@gmail.com>"]

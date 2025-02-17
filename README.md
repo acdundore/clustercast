@@ -33,6 +33,12 @@ pip install clustercast
 
 ---
 
+## Documentation
+
+Documentation is available [here](https://acdundore.github.io/clustercast/) on Github Pages, which includes a full API reference and example walkthroughs.
+
+---
+
 ## Usage
 
 The forecasting models in `clustercast` are simple to use, but come with many additional parameters allowing the user to implement sophisticated preprocessing techniques with ease. 

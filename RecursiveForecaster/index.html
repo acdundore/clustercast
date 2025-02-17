@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>RecursiveForecaster - Clustercast</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "RecursiveForecaster";
+        var mkdocs_page_input_path = "RecursiveForecaster.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Clustercast
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Quick Start Examples</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_single-series/">Local (Single-Series) Forecasting</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_multi-series/">Global (Multi-Series) Forecasting</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_custom-regressor/">Using a Custom Base Regressor</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_exog-features/">Modeling with Exogenous Features</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_inspecting-data/">Inspecting Transformed Data</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Clustercast API</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../DirectForecaster/">DirectForecaster</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">RecursiveForecaster</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../datasets/">.datasets</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Clustercast</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Clustercast API</li>
+      <li class="breadcrumb-item active">RecursiveForecaster</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="recursive-forecaster">Recursive Forecaster</h1>
+<p>The <code>RecursiveForecaster</code> class implements recursive multi-step forecasting, supporting both single-series (local) forecasting and multi-series (global) forecasting for grouped or hierarchical time series.<sup>[1]</sup> It trains a single model and uses the model's predictions as inputs for subsequent predictions, iterating through the forecast horizon. The class handles a variety of time series preprocessing techniques natively, including differencing, Box-Cox transformations, seasonality features, and lag calculations. The <code>RecursiveForecaster</code> provides both point forecasts and prediction intervals by performing a number of prediction runs with bootstrapped residuals for each series. This flexible forecaster is well-suited for time series with complex patterns and multiple relevant predictors.</p>
+<hr />
+<blockquote>
+<p><em>class</em> clustercast.<strong>RecursiveForecaster</strong>(<em>data, endog_var, id_var, timestep_var, group_vars=[], exog_vars=[], boxcox=1, differencing=False, include_level=True, include_timestep=False, lags=1, sample_weight_halflife=None, seasonality_fourier={}, seasonality_onehot=[], seasonality_ordinal=[], lgbm_kwargs={'verbose': -1}, base_regressor=None</em>)</p>
+</blockquote>
+<hr />
+<h3 id="parameters">Parameters</h3>
+<p>Once the model class has been instantiated, the parameters may not be changed.</p>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>data : <code>pd.DataFrame</code></td>
+<td>The input data containing the time series, IDs, timesteps, and any <br>grouping or exogenous variables.</td>
+</tr>
+<tr>
+<td>endog_var : <code>str</code></td>
+<td>The name of the target variable to forecast.</td>
+</tr>
+<tr>
+<td>id_var : <code>str</code></td>
+<td>The name of the column containing unique identifiers for each time <br>series.</td>
+</tr>
+<tr>
+<td>timestep_var : <code>str</code></td>
+<td>The name of the column containing the time steps. The timestep <br>values may either be datetimes, integers, or floats.</td>
+</tr>
+<tr>
+<td>group_vars : <code>list</code></td>
+<td>List of column names containing categorical variables used to group <br>the time series.</td>
+</tr>
+<tr>
+<td>exog_vars  : <code>list</code></td>
+<td>List of column names containing exogenous variables to use as <br>predictors.</td>
+</tr>
+<tr>
+<td>boxcox : <code>float</code> or <code>int</code></td>
+<td>The Box-Cox transformation parameter. Use <code>1</code> for no transformation. <br>A value of <code>0</code> will perform a log transformation.</td>
+</tr>
+<tr>
+<td>differencing : <code>bool</code></td>
+<td>Whether to apply first-order differencing to the target variable.</td>
+</tr>
+<tr>
+<td>include_level : <code>bool</code></td>
+<td>Whether to include the level of the target variable as a feature. <br>When <code>True</code>, this is only included when differencing is applied.</td>
+</tr>
+<tr>
+<td>include_timestep : <code>bool</code></td>
+<td>Whether to include the time step as a feature. If <code>True</code>, an integer <br>index starting at zero is mapped to each unique timestep <br>chronologically and passed to the regressor. Use with caution, as <br>this may make your model prone to overfitting.</td>
+</tr>
+<tr>
+<td>lags : <code>int</code> or <code>list</code></td>
+<td>The number of lags, or a list of specific lag values, to use as features.</td>
+</tr>
+<tr>
+<td>sample_weight_halflife : <code>int</code></td>
+<td>The halflife, in number of timesteps, used to calculate sample weights <br>during the model fit (more recent timesteps have a heavier weight). If <br><code>None</code>, all samples are weighted equally.</td>
+</tr>
+<tr>
+<td>seasonality_fourier : <code>dict</code></td>
+<td>Dictionary with periods as the keys and number of Fourier terms as <br>values.</td>
+</tr>
+<tr>
+<td>seasonality_onehot : <code>list</code></td>
+<td>List of periods for one-hot encoded seasonality features.</td>
+</tr>
+<tr>
+<td>seasonality_ordinal : <code>list</code></td>
+<td>List of periods for ordinal encoded seasonality features.</td>
+</tr>
+<tr>
+<td>lgbm_kwargs : <code>dict</code></td>
+<td>Additional keyword arguments to pass to LGBMRegressor, if no <br>custom base regressor is used.</td>
+</tr>
+<tr>
+<td>base_regressor : <code>class</code></td>
+<td>Alternative regressor class to use instead of LGBMRegressor. You can <br>create an custom wrapper for any statistical or machine learning <br>regressor if certain criteria are met. See the examples page for more <br>information.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h3 id="methods">Methods</h3>
+<p><strong>.fit</strong>(<em>alpha=None</em>)</p>
+<blockquote>
+<p>Creates and fits the forecasting model.
+Trains a single model that will be used recursively for multi-step forecasting. The model can
+optionally be used to generate prediction intervals via bootstrapped residuals.</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>alpha : <code>float</code></td>
+<td>Miscoverage rate for prediction intervals (e.g., 0.05 for 95% <br>intervals). If <code>None</code>, only point forecasts are produced.</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<p><strong>.predict</strong>(<em>steps=1, exog_data=None, bootstrap_iter=500</em>)</p>
+<blockquote>
+<p>Generates forecasts for multiple steps ahead.
+Makes predictions up to the specified number of steps ahead by using one-step-ahead forecasts as inputs for subsequent timesteps.
+Optionally generates prediction intervals via bootstrapped residuals.</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>steps : <code>int</code></td>
+<td>Number of steps ahead to forecast. Default is <code>1</code>.</td>
+</tr>
+<tr>
+<td>exog_data : <code>pd.DataFrame</code></td>
+<td>Future values of exogenous variables. Must contain the same columns <br>as the exogenous variables used during fitting, along with the ID<br> and timestep variables. Although this is an optional argument, <br>performance may be degraded if exogenous variables were used for <br>training and are not provided for prediction.</td>
+</tr>
+<tr>
+<td>bootstrap_iter : <code>int</code></td>
+<td>Number of bootstrap iterations to use when generating prediction <br>intervals. It is recommended to use a bare minimum of <code>100</code> bootstrap <br>iterations. An excessive number of iterations will be computationally<br> intensive. Only used when alpha was specified during fitting. Default<br> is <code>500</code>.</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Returns</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>forecasts : <code>pd.DataFrame</code></td>
+<td>DataFrame containing the forecasts and optionally prediction intervals<br> for each time series at each forecast horizon.</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<p><strong>.stationarity_test</strong>(<em>test='both'</em>)</p>
+<blockquote>
+<p>Tests for stationarity of each time series before and after the model's transformations.
+Performs either Augmented Dickey-Fuller (ADF) test, Kwiatkowski-Phillips-Schmidt-Shin (KPSS) test, or both.
+The ADF test has a null hypothesis of non-stationarity, while KPSS has a null hypothesis of stationarity.</p>
+<table>
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>test : <code>str</code></td>
+<td>Which stationarity test(s) to perform: <br>-<code>'adf'</code>: Augmented Dickey-Fuller test only <br>-<code>'kpss'</code>: KPSS test only <br>-<code>'both'</code>: Both ADF and KPSS tests (default)</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Returns</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>results : <code>pd.DataFrame</code></td>
+<td>DataFrame containing test results with columns: <br>- ID variable <br>- 'Raw ADF p-value': ADF test p-value on raw data (optional) <br>- 'Raw KPSS p-value': KPSS test p-value on raw data (optional) <br>- 'Transformed ADF p-value': ADF test p-value after transform (optional) <br>- 'Transformed KPSS p-value': KPSS test p-value after transform (optional)</td>
+</tr>
+</tbody>
+</table>
+</blockquote>
+<hr />
+<h3 id="example">Example</h3>
+<pre><code class="language-python"># imports
+from clustercast.datasets import load_store_sales
+from clustercast import RecursiveForecaster
+
+# load store sales data
+data = load_store_sales()
+print(data)
+</code></pre>
+<pre><code class="language-profile">     ID         YM   Region         Category      Sales    exog_1    exog_2
+0     1 2015-01-01  Central        Furniture    506.358  1.764052  3.248691
+1     2 2015-01-01  Central  Office Supplies    996.408  0.400157 -1.223513
+2     3 2015-01-01  Central       Technology     31.200  0.978738 -1.056344
+3     4 2015-01-01     East        Furniture    199.004  2.240893 -2.145937
+4     5 2015-01-01     East  Office Supplies    112.970  1.867558  1.730815
+..   ..        ...      ...              ...        ...       ...       ...
+424   8 2017-12-01    South  Office Supplies   5302.324 -0.130107  4.109248
+425   9 2017-12-01    South       Technology   2910.754  0.093953  0.106819
+426  10 2017-12-01     West        Furniture  14391.752  0.943046 -0.958314
+427  11 2017-12-01     West  Office Supplies   9166.328 -2.739677  0.700334
+428  12 2017-12-01     West       Technology   8545.118 -0.569312  0.034329
+
+[429 rows x 7 columns]
+</code></pre>
+<pre><code class="language-python"># show the future data for the exogenous variables (either known or forecasted)
+print(future_exog)
+</code></pre>
+<pre><code class="language-profile">     ID    exog_1     exog_2           YM
+0     1  1.331587  -1.930131   2018-01-01
+1     2  0.715279   2.056548   2018-01-01
+2     3 -1.545400   0.457260   2018-01-01
+3     4 -0.008384   0.890275   2018-01-01
+4     5  0.621336  -2.273204   2018-01-01
+..   ..       ...        ...          ...
+283   8  2.010783   0.686925   2019-12-01
+284   9 -0.096784   3.092061   2019-12-01
+285  10  0.422202   1.380162   2019-12-01
+286  11 -0.225462  -4.091707   2019-12-01
+287  12 -0.637943   0.668934   2019-12-01
+
+[288 rows x 4 columns]
+</code></pre>
+<pre><code class="language-python"># create the forecasting model
+model = RecursiveForecaster(
+    data=data, # provide the full dataset
+    endog_var='Sales', # the sales column will be forecasted
+    id_var='ID', # indicates the different time series identifier column
+    group_vars=['Region', 'Category'], # group features that differentiate the time series
+    timestep_var='YM', # indicates the timestep column
+    exog_vars=['exog_1', 'exog_2'], # indicates the exogenous features to use
+    boxcox=0.5, # boxcox transformation with lambda = 0.5
+    differencing=False, # do not difference the data
+    include_level=False, # do not include a level feature
+    include_timestep=False, # do not include timestep as a feature
+    lags=12, # include lags 1 through 12
+    sample_weight_halflife=12, # decay the sample weights
+    seasonality_ordinal=[12], # include an ordinal seasonality feature
+    lgbm_kwargs={'n_estimators': 300, 'learning_rate': 0.03, 'max_depth': 30, 'reg_lambda': 0.03, 'verbose':-1},
+)
+
+# fit the model
+model.fit(alpha=0.10)
+
+# make predictions out to 12 steps ahead, pass the future exog data,
+# and use 500 bootstrap iterations to produce prediction intervals
+forecast = model.predict(steps=12, exog_data=future_exog, bootstrap_iter=500)
+print(forecast)
+</code></pre>
+<pre><code class="language-profile">     ID         YM   Region         Category     Forecast  Forecast_0.050  Forecast_0.950  
+0     1 2018-01-01  Central        Furniture  3249.188111      823.035650     5335.111385  
+1     2 2018-01-01  Central  Office Supplies  2484.753879      731.983805     5578.788326  
+2     3 2018-01-01  Central       Technology  3015.802614     1504.573711    13206.456765  
+3     4 2018-01-01     East        Furniture  1845.889868      471.868242     5599.483712  
+4     5 2018-01-01     East  Office Supplies  3785.740747     1534.934691     6936.820658  
+..   ..        ...      ...              ...          ...             ...             ... 
+139   8 2018-12-01    South  Office Supplies  4050.859234     1729.549101    10691.168582  
+140   9 2018-12-01    South       Technology  3080.471316     1000.518659    12845.554813 
+141  10 2018-12-01     West        Furniture  9342.107224     7607.681676    13520.501073 
+142  11 2018-12-01     West  Office Supplies  7727.692540     3622.107959    12863.080882  
+143  12 2018-12-01     West       Technology  9912.039919     5914.329473    12409.999083  
+
+[144 rows x 7 columns]
+</code></pre>
+<hr />
+<h3 id="references">References</h3>
+<p><a href="https://otexts.com/fpp3/hts.html#grouped-time-series">[1] Hyndman, Rob J., and George Athanasopoulos. “Hierarchical and Grouped Time Series.” Forecasting: Principles and Practice, Otexts, 2021.</a></p>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../DirectForecaster/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+      <span><a href="../datasets/" style="color: #fcfcfc">Next &raquo;</a></span>
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>

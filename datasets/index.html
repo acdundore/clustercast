@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>.datasets - Clustercast</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = ".datasets";
+        var mkdocs_page_input_path = "datasets.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+      <script>hljs.highlightAll();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> Clustercast
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Quick Start Examples</span></p>
+              <ul>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_single-series/">Local (Single-Series) Forecasting</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_multi-series/">Global (Multi-Series) Forecasting</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_custom-regressor/">Using a Custom Base Regressor</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_exog-features/">Modeling with Exogenous Features</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../example_inspecting-data/">Inspecting Transformed Data</a>
+                  </li>
+              </ul>
+              <p class="caption"><span class="caption-text">Clustercast API</span></p>
+              <ul class="current">
+                  <li class="toctree-l1"><a class="reference internal" href="../DirectForecaster/">DirectForecaster</a>
+                  </li>
+                  <li class="toctree-l1"><a class="reference internal" href="../RecursiveForecaster/">RecursiveForecaster</a>
+                  </li>
+                  <li class="toctree-l1 current"><a class="reference internal current" href="#">.datasets</a>
+                  </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">Clustercast</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" aria-label="Docs"></a></li>
+          <li class="breadcrumb-item">Clustercast API</li>
+      <li class="breadcrumb-item active">.datasets</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <h1 id="datasets">Datasets</h1>
+<p><code>clustercast</code> includes two example datasets that can be imported and used to experiment with the forecasting classes.</p>
+<hr />
+<h2 id="airline-passengers-dataset">Airline Passengers Dataset</h2>
+<blockquote>
+<p><em>function</em> clustercast.datasets.<strong>load_airline_passengers</strong>()</p>
+</blockquote>
+<p>This function returns the well-known airline passengers dataset as a pandas dataframe.<sup>[1]</sup>
+The airline passengers dataset records monthly airline passengers over a period of many years.
+This dataset is great for learning about time series forecasting because it is non-stationary and exhibits strong seasonality.</p>
+<h3 id="example">Example</h3>
+<pre><code class="language-python">from clustercast.datasets import load_airline_passengers
+
+# load in the dataset
+data = load_airline_passengers()
+print(data)
+</code></pre>
+<pre><code class="language-profile">            YM  Passengers
+0   1949-01-01         112
+1   1949-02-01         118
+2   1949-03-01         132
+3   1949-04-01         129
+4   1949-05-01         121
+..         ...         ...
+139 1960-08-01         606
+140 1960-09-01         508
+141 1960-10-01         461
+142 1960-11-01         390
+143 1960-12-01         432
+
+[144 rows x 2 columns]
+</code></pre>
+<hr />
+<h2 id="store-sales-dataset">Store Sales Dataset</h2>
+<blockquote>
+<p><em>function</em> clustercast.datasets.<strong>load_store_sales</strong>()</p>
+</blockquote>
+<p>This function returns a superstore sales dataset as a pandas dataframe.<sup>[2]</sup>
+This dataset is a modified version of an open dataset found on Kaggle, linked in the references below.
+The store sales dataset is a good example for global forecasting of grouped time series, as there are 12
+closely related time series that have shared and overlapping attributes (store region and product category).<sup>[3]</sup></p>
+<h3 id="example_1">Example</h3>
+<pre><code class="language-python">from clustercast.datasets import load_store_sales
+
+# load in the dataset
+data = load_store_sales()
+print(data)
+</code></pre>
+<pre><code class="language-profile">     ID         YM   Region    Category     Sales
+0     1 2015-01-01  Central   Furniture   506.358
+1     1 2015-02-01  Central   Furniture   439.310
+2     1 2015-03-01  Central   Furniture  3639.290
+3     1 2015-04-01  Central   Furniture  1468.218
+4     1 2015-05-01  Central   Furniture  2304.382
+..   ..        ...      ...         ...       ...
+568  12 2018-08-01     West  Technology  6230.788
+569  12 2018-09-01     West  Technology  5045.440
+570  12 2018-10-01     West  Technology  4651.807
+571  12 2018-11-01     West  Technology  7584.580
+572  12 2018-12-01     West  Technology  8064.524
+
+[573 rows x 5 columns]
+</code></pre>
+<hr />
+<h3 id="references">References</h3>
+<p><a href="https://www.kaggle.com/datasets/erogluegemen/airline-passengers">[1] “Airline Passengers.” Kaggle. Accessed 2025.</a></p>
+<p><a href="https://www.kaggle.com/datasets/rohitsahoo/sales-forecasting?select=train.csv">[2] “Superstore Sales Dataset.” Kaggle. Accessed 2025.</a></p>
+<p><a href="https://otexts.com/fpp3/hts.html#grouped-time-series">[3] Hyndman, Rob J., and George Athanasopoulos. “Hierarchical and Grouped Time Series.” Forecasting: Principles and Practice, Otexts, 2021.</a></p>
+              
+            </div>
+          </div><footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href="../RecursiveForecaster/" style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script src="../js/jquery-3.6.0.min.js"></script>
+    <script>var base_url = "..";</script>
+    <script src="../js/theme_extra.js"></script>
+    <script src="../js/theme.js"></script>
+      <script src="../search/main.js"></script>
+    <script>
+        jQuery(function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        });
+    </script>
+
+</body>
+</html>
